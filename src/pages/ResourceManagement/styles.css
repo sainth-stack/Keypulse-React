@@ -1,0 +1,33 @@
+.top-header {
+  font-size: 20px;
+  font-family: 'Poppins';
+  font-weight: 500;
+  line-height: 28px;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.search {
+  position: absolute;
+  left: 500px;
+  top: 11.8%
+}
+
+.search-input {
+  background-image: url('../../assets/svg/search-icon.svg');
+  background-position: 10px center;
+  background-repeat: no-repeat;
+  padding-left: 40px;
+  /* Adjust the padding as needed */
+}
+
+.graphCardHeight {
+  /* height:550px !important */
+}
+
+.bubble{
+  width:'200px'
+}
+/* .availability{
+  margin-top: -80px !important;
+} */

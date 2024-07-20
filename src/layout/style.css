@@ -1,0 +1,6 @@
+.main-content{
+    /* height: 90vh !important; */
+    overflow: auto;
+    overflow-x:hidden;
+    margin-left: 217px;    ;
+}
