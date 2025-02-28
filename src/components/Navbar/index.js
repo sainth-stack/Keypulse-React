@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 // import "./styles.scss";
 // import userprofile from '../../assets/images/userprofile.png'
 import { useNavigate } from "react-router-dom";
-import Logo from '../../assets/images/Logo2.png'
+import Logo from '../../assets/images/logo3.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
 import { useLocation } from "react-router-dom";
 function Navbar() {
@@ -32,38 +32,18 @@ function Navbar() {
   return (
     <>
       <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm sticky-top bg-white-fixed">
-        <div class="collapse navbar-collapse" style={{ marginLeft: '0px' }} id="navbarNav">
+        <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingLeft:'40px'}} id="navbarNav">
           <img
             src={Logo}
-            style={{ width: '160px' }}
+            style={{ width: '70px',height:'70px' }}
             id="logo_RL"
           />
-          {name == "KProcess" && <div style={{
-            marginLeft: '80px',
-            marginTop: '10px',
-            fontWeight: 700,
-            fontSize: '23px',
-            color:"#427ae3"
-          }}>
-            Dashboard
-          </div>}
-          <div style={{
-            marginLeft: name == "KProcess" ? '30%':'80px',
-            marginTop: '10px',
-            fontWeight: 700,
-            fontSize: '23px'
-          }}>
-            {name}
-          </div>
+        </div>
 
+        <div className="position-absolute w-100 d-flex justify-content-center" style={{ pointerEvents: 'none' }}>
+          <h2 style={{fontSize:'30px',fontWeight:'bold'}} className="m-0">DataPX1</h2>
         </div>
-        <div className="card me-2" style={{
-          fontFamily: "poppins", fontSize: "12px", alignItems: "center",
-          display: 'flex',
-          padding: "4px"
-        }}>
-          <span>  Jan - Dec 2023    <AiTwotoneCalendar style={{ marginTop: "-3px" }} /></span>
-        </div>
+
         <div class="nav-item ms-1 dropdown d-flex align-items-center mr-0 pr-0" style={{ color: 'black' }}>
           <a
             className="nav-link dropdown-toggle p-0 m-0 pe-5"

@@ -1,50 +1,51 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useState } from "react";
-import "./styles.css";
-import {LuFileClock} from 'react-icons/lu'
-import {HiUserGroup} from 'react-icons/hi'
-import {VscFileSymlinkDirectory} from 'react-icons/vsc'
-import {FaFileContract} from 'react-icons/fa'
-import {TbReport} from 'react-icons/tb'
-import { Link } from "react-router-dom";
+import React from "react";
+import { LuHome } from "react-icons/lu";
+import { BiAnalyse } from "react-icons/bi";
+import { RiFileWarningLine } from "react-icons/ri";
+import { AiOutlineRobot } from "react-icons/ai";
+import { IoStatsChartOutline } from "react-icons/io5";
+import { Link, useLocation } from "react-router-dom";
+import "./styles.css"; // Separate CSS file for animations
+
 export default function Sidebar() {
+  const location = useLocation();
 
   return (
-    <>
-      <div class="shadow sidebar-scroll sticky-top zindex99 mt-3" style={{ overflow: 'auto',width:'220px',zIndex:99999,position:"fixed",left:0,top:60 }}>
-        <ul class="sidebar-list-items" id="menu">
-          <li class="sidebar-list-item pt-4 cursor-pointer">
-            <Link to="/" class="nav-link align-middle px-2 nav-item">
-              <HiUserGroup size={20} style={{marginBottom:'5px'}}/>
-              <span class="ms-1 d-none d-sm-inline link-text text-black px-1">kProcess</span>
+    <div className="main-container">
+      <nav className="sidebar shadow sidebar-scroll sticky-top">
+        <ul className="sidebar-list" id="menu">
+          <li className={`sidebar-item mt-1 ${['/home', '/'].includes(location.pathname) ? "active" : ""}`}>
+            <Link to="/" className="sidebar-link">
+              <LuHome size={20} />
+              <span className="link-text">Home</span>
             </Link>
           </li>
-          <li class="sidebar-list-item pt-4 cursor-pointer">
-            <Link to="/productivity" class="nav-link align-middle px-2 nav-item">
-             <LuFileClock size={20}/>
-              <span class="ms-1 d-none d-sm-inline link-text px-1">Productivity</span>
+          <li className={`sidebar-item mt-2 ${location.pathname === "/data-analysis" ? "active" : ""}`}>
+            <Link to="/data-analysis" className="sidebar-link">
+              <BiAnalyse size={20} />
+              <span className="link-text">Data Analysis</span>
             </Link>
           </li>
-          <li class="sidebar-list-item pt-4 cursor-pointer">
-            <Link to="/sustainability" class="nav-link align-middle px-2 nav-item">
-             <VscFileSymlinkDirectory size={20}/>
-              <span class="ms-1 d-none d-sm-inline link-text px-1">Sustainability</span>
+          <li className={`sidebar-item mt-2 ${location.pathname === "/missing-value" ? "active" : ""}`}>
+            <Link to="/missing-value" className="sidebar-link">
+              <RiFileWarningLine size={20} />
+              <span className="link-text">Missing Value Treatment</span>
             </Link>
           </li>
-          <li class="sidebar-list-item pt-4 cursor-pointer">
-            <Link to="/resilience" class="nav-link align-middle px-2 nav-item">
-             <FaFileContract size={20}/>
-              <span class="ms-1 d-none d-sm-inline link-text px-1">Resilience</span>
+          <li className={`sidebar-item mt-2 ${location.pathname === "/ai-models" ? "active" : ""}`}>
+            <Link to="/ai-models" className="sidebar-link">
+              <AiOutlineRobot size={20} />
+              <span className="link-text">AI and Models</span>
             </Link>
           </li>
-          <li class="sidebar-list-item pt-4 cursor-pointer">
-            <Link to="/reports" class="nav-link align-middle px-2 nav-item">
-             <TbReport size={20}/>
-              <span class="ms-1 d-none d-sm-inline link-text px-1">Reports</span>
+          <li className={`sidebar-item mt-2 ${location.pathname === "/kpi" ? "active" : ""}`}>
+            <Link to="/kpi" className="sidebar-link">
+              <IoStatsChartOutline size={20} />
+              <span className="link-text">KPI</span>
             </Link>
           </li>
         </ul>
-      </div>
-    </>
+      </nav>
+    </div>
   );
 }

@@ -1,83 +1,89 @@
-.sidebar-list-items {
-  margin: 0;
-  padding: 0;
-}
-.sidebar-list-item {
-  list-style-type: none;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  font-size: 14px;
-}
-.sidebar-list-icon {
-  width: 15px;
-  height: 15px;
-  margin-right: 10px;
-}
-.user-dropdown {
-  width: 200px !important;
-}
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 999;
-  background-color: red;
+/* Main Container */
+.main-container {
   width: 100%;
-}
-.sidebar-scroll {
-  height: calc(90vh);
-  overflow: auto;
-  width: 250px;
-}
-.collapse {
-  margin-left: 50px;
-  padding: 0px;
-}
-.setup {
-  margin-left: 0px;
-}
-.setup:hover {
-  color: #2a8981;
-  cursor: pointer;
-}
-.adminActivities {
-  font-style: normal;
-  font-weight: bold;
-  font-size: 18px;
-}
-.hide {
-  display: none !important;
-}
-.sidebar-icon-only .sidebar-list-items {
-  width: 50px;
-}
-.sidebar-icon-only .link-text,
-.sidebar-icon-only .adminActivities {
-  display: none;
-}
-.sidebar-icon-only .sidebar-scroll {
-  width: 50px;
-}
-.sidebar-icon-only .collapse {
-  margin-left: 0px;
-}
-.text-active {
-  color: #2a8981 !important;
-}
-.zindex99 {
-  z-index: 99 !important;
-}
-.right-side {
-  transform: rotateY(180deg);
+  background-color: #f8f9fa;
+  height: 87vh;
+  /* position: fixed; */
+  /* top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;   */
 }
 
-.left-side {
-  transform: rotateY(0deg);
+/* Sidebar Container */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0 !important;
+  width: 280px;
+  height: 100vh;
+  z-index: 9999;
+  overflow-y: auto;
+  background: #ffffff;
+  padding: 20px 0;
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.06);
+  border-right: 1px solid #eaeaea;
 }
-.nav-item {
-  font-style: normal;
+
+/* Sidebar List */
+.sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Sidebar Items */
+.sidebar-item {
+  padding: 14px 24px;
+  margin: 4px 12px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+/* Sidebar Links */
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #4a5568;
   font-size: 15px;
-  color: black !important;
-  font-family: Poppins;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+/* Link Icon */
+.sidebar-link svg {
+  margin-right: 12px;
+  color: #6b7280;
+  font-size: 20px;
+  transition: all 0.3s ease;
+}
+
+/* Hover Effect */
+.sidebar-item:hover {
+  background: #f7f9fc;
+  transform: translateX(4px);
+}
+
+.sidebar-item:hover .sidebar-link {
+  color: #2563eb;
+}
+
+.sidebar-item:hover svg {
+  color: #2563eb;
+}
+
+/* Active Item */
+.sidebar-item.active {
+  background: #eef2ff;
+  border-left: none;
+}
+
+.sidebar-item.active .sidebar-link {
+  color: #2563eb;
+}
+
+.sidebar-item.active svg {
+  color: #2563eb;
 }

@@ -1,0 +1,47 @@
+.missing-values-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background-color: white;
+    font-size: 0.925rem;
+}
+
+.missing-values-table th {
+    background-color: #f8fafc;
+    padding: 1rem 1.25rem;
+    text-align: left;
+    font-weight: 600;
+    color: #1a237e;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.missing-values-table td {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #4a5568;
+}
+
+.missing-values-table tbody tr:hover {
+    background-color: #f8f9fa;
+    transition: background-color 0.2s ease;
+}
+
+.missing-values-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.missing-values-table td.imputed {
+    background-color: #fee2e2;
+}
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
