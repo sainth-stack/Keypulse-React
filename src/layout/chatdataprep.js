@@ -19,10 +19,19 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
         formData.append('prompt', question);
         const endpoint = 'http://54.169.213.200:4003/api/genai_bot';
 
+        // Get user ID from localStorage
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id;
+
         try {
             const res = await axios.post(
                 `${endpoint}`,
-                formData
+                formData,
+                {
+                    headers: {
+                        'X-User-ID': userId,
+                    }
+                }
             );
             const ans = data.map((item) => {
                 if (item.question == question) {

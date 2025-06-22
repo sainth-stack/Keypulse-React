@@ -1,0 +1,11 @@
+.user-select-none{
+    width: 100% !important;
+}
+
+.plotly{
+    width: 100% !important;
+}
+
+.js-plotly-plot, .main-svg{
+    width: 100% !important;
+}

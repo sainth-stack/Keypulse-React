@@ -9,7 +9,10 @@ function NavbarV2() {
   const navigate = useNavigate()
   const handleLogout = () => {
     localStorage.removeItem("token")
+    localStorage.removeItem("permissions")
+    localStorage.clear();
     navigate('/login')
+    
   }
   return (
     <>

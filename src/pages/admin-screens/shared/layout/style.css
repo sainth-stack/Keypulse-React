@@ -1,0 +1,7 @@
+.main-content{
+    /* height: 90vh !important; */
+    overflow: auto;
+    overflow-x:hidden;
+    height: calc(100vh - 0px);
+    /* margin-left: 217px;    ; */
+}

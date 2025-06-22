@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import './index.css';
 import { API_URL } from '../../const';
 import Plot from 'react-plotly.js';
+import { LoadingIndicator } from '../../components/loader';
 
 const DataAnalysis = () => {
   const location = useLocation();
@@ -11,15 +12,25 @@ const DataAnalysis = () => {
   const [analysisData, setAnalysisData] = useState(fileData);
   const [apiData, setApiData] = useState(null);
   const [plotData, setPlotData] = useState(null);
+  const [loading, setLoading] = useState(false);
   
   // Get data from localStorage instead of location state
   const fileName = localStorage.getItem('fileName');
   useEffect(() => {
     // Fetch API data when component mounts
     const fetchData = async () => {
+      setLoading(true);
       try {
+        // Get user ID from localStorage
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id;
+
         const [dataResponse] = await Promise.all([
-          fetch(`${API_URL}/dataprocess`)        ]);
+          fetch(`${API_URL}/dataprocess`, {
+            headers: {
+              'X-User-ID': userId,
+            },
+          })        ]);
         
         const data = await dataResponse.json();
         const plots = {...data?.barplots, ...data?.pieplots, ...data?.scatterplots, ...data?.boxplots};
@@ -27,12 +38,13 @@ const DataAnalysis = () => {
         setPlotData(plots);
       } catch (error) {
         console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
   }, []);
-console.log(analysisData)
   const renderSummaryStats = () => {
     if (!apiData) return null;
     
@@ -75,7 +87,7 @@ console.log(analysisData)
   const renderTable = () => {
     if (!analysisData?.data || analysisData?.data == 'No data') return <p>No data available</p>;
     
-    const parsedData = JSON.parse(analysisData.data);
+    const parsedData = JSON.parse(analysisData?.data);
     const headers = Object.keys(parsedData);
     const rowCount = Object.values(parsedData)[0] ? Object.keys(Object.values(parsedData)[0]).length : 0;
     
@@ -237,20 +249,22 @@ console.log(analysisData)
     });
   };
 
-  if (!analysisData) {
-    return (
-      <div className="analysis-container">
-        <div className="loading">Loading data analysis...</div>
-      </div>
-    );
-  }
+  // if (!analysisData) {
+  //   return (
+  //     <div className="analysis-container">
+  //       <div className="loading">Loading data analysis...</div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="analysis-container">
+      {loading && <LoadingIndicator message="Loading analysis data..." />}
+      
       <h1 className="analysis-title">Data Analysis</h1>
-      <div className="file-info">
+      {/* <div className="file-info">
         <h2>Analyzing: {fileName}</h2>
-      </div>
+      </div> */}
       
       {renderSummaryStats()}
 
@@ -259,7 +273,7 @@ console.log(analysisData)
         {renderAccordionSection('Feature Analysis', renderCategoricalAnalysis())}
         {renderAccordionSection('Numerical Analysis', renderNumericalAnalysis())}
         {renderAccordionSection('Missing Value Analysis', renderMissingValueAnalysis())}
-        {renderAccordionSection('Visualizations', renderPlots())}
+        {/* {renderAccordionSection('Visualizations', renderPlots())} */}
       </div>
     </div>
   );

@@ -7,12 +7,13 @@ const AiAndModels = () => {
     const [response, setResponse] = useState(null);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        model: '',
-        col: ''
+        model: 'RandomForest', // Default set to RandomForest
+        col: '',
+        frequency: 'days', // Default frequency
+        tenure: '1' // Default tenure
     });
     const [rfInputs, setRfInputs] = useState({});
 
-    // Get data from localStorage and parse it properly
     const rawData = localStorage.getItem('fileData');
     let fileData = null;
     try {
@@ -21,14 +22,29 @@ const AiAndModels = () => {
         console.error('Error parsing fileData:', error);
     }
 
-    // Get column names from the processed data
     const columns = fileData && Object.keys(fileData)?.length > 0 ? Object.keys(fileData) : [];
 
-    const handleModelChange = (e) => {
-        const model = e.target.value;
-        setFormData({ model, col: '' }); // Reset the column when model changes
-        setResponse(null); // Reset the response
-        setRfInputs({}); // Reset the Random Forest inputs
+    const models = [
+        { id: 'RandomForest', label: 'Random Forest' },
+        { id: 'K-Means', label: 'K-Means' },
+        { id: 'Arima', label: 'ARIMA' },
+        { id: 'OutlierDetection', label: 'Outlier Detection' }
+    ];
+
+    const frequencyOptions = [
+        { value: 'days', label: 'Days' },
+        { value: 'weeks', label: 'Weeks' },
+        { value: 'months', label: 'Months' },
+        { value: 'quarters', label: 'Quarters' },
+        { value: 'years', label: 'Years' }
+    ];
+
+    const tenureOptions = [1, 3, 5, 7, 10]; // Example tenure values
+
+    const handleModelChange = (model) => {
+        setFormData(prev => ({ ...prev, model, col: '' }));
+        setResponse(null);
+        setRfInputs({});
     };
 
     const handleColumnChange = (e) => {
@@ -36,19 +52,35 @@ const AiAndModels = () => {
         setFormData(prev => ({ ...prev, col }));
     };
 
+    const handleFrequencyChange = (e) => {
+        const frequency = e.target.value;
+        setFormData(prev => ({ ...prev, frequency }));
+    };
+
+    const handleTenureChange = (e) => {
+        const tenure = e.target.value;
+        setFormData(prev => ({ ...prev, tenure }));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-
         try {
+            // Get user ID from localStorage
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const userId = user.id;
+
             const response = await fetch(`${API_URL}/models`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-User-ID': userId,
                 },
                 body: new URLSearchParams({
                     model: formData.model,
                     col: formData.col,
+                    frequency: formData.frequency,
+                    tenure: formData.tenure
                 }),
             });
 
@@ -63,27 +95,38 @@ const AiAndModels = () => {
 
     const renderResponse = () => {
         if (!response) return null;
-
+    
+        // Check if the response contains the specific message
+        if (response.msg) {
+            return <div className="error-text">{response.msg}</div>;
+        }
+    
         switch (formData.model) {
             case 'RandomForest':
                 return (
                     <div className="rf-container">
-                        <h2>Random Forest Prediction</h2>
-                        <p>Status: {response.status} True</p>
-                       {response.rf_cols ? <div className="rf-content">
+                        <h2 className="response-title">Random Forest Prediction</h2>
+                        <p className="status-text">Status: {response.status} True</p>
+                        <div className="rf-content">
                             <form className="rf-input-form" onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    // Create FormData and append all inputs
                                     const formData2 = new FormData();
                                     formData2.append('form_name', 'rf');
                                     formData2.append('targetColumn', formData.col);
                                     Object.entries(rfInputs).forEach(([key, value]) => {
                                         formData2.append(key, value);
                                     });
+    
+                                    // Get user ID from localStorage
+                                    const user = JSON.parse(localStorage.getItem('user') || '{}');
+                                    const userId = user.id;
 
                                     const response = await fetch(`${API_URL}/model_predict`, {
                                         method: 'POST',
+                                        headers: {
+                                            'X-User-ID': userId,
+                                        },
                                         body: formData2,
                                     });
                                     const data = await response.json();
@@ -126,23 +169,20 @@ const AiAndModels = () => {
                                     </div>
                                 )}
                             </div>
-                        </div> : <div>{response?.msg || "No data found"}</div>}
+                        </div>
                     </div>
                 );
+    
             case 'K-Means':
-                // Parse the clustered_data string into an object
                 let clusteredData;
                 try {
                     clusteredData = JSON.parse(response.clustered_data);
                 } catch (error) {
                     console.error('Error parsing clustered_data:', error);
-                    return <div>This dataset doesn't meet the modeling requirement</div>;
+                    return <div className="error-text">This dataset doesn't meet the modeling requirement</div>;
                 }
-
-                // Get column names from the clustered data
+    
                 const tableColumns = Object.keys(clusteredData);
-
-                // Convert object structure to array of rows
                 const rows = Object.keys(clusteredData[tableColumns[0]]).map(rowIndex => {
                     const row = {};
                     tableColumns.forEach(col => {
@@ -150,13 +190,12 @@ const AiAndModels = () => {
                     });
                     return row;
                 });
-
+    
                 return (
                     <div className="response-container">
-                        <h2>Clustering Results</h2>
-                        <p>Status: {response.status} True</p>
-                        <p>Clusters: {response.cluster} True</p>
-                        
+                        <h2 className="response-title">Clustering Results</h2>
+                        <p className="status-text">Status: {response.status} True</p>
+                        <p className="status-text">Clusters: {response.cluster} True</p>
                         <div className="table-container">
                             <table className="clustered-data-table">
                                 <thead>
@@ -183,89 +222,84 @@ const AiAndModels = () => {
                         </div>
                     </div>
                 );
+    
             case 'OutlierDetection':
                 return (
                     <div className="response-container">
-                        <h2>Outlier Detection Results</h2>
-                        <p>Status: {response.status}  True</p>
-                    <div>
-               {response.processed_data ? <div className="processed-data">
-                            <h3>Analysis Details:</h3>
-                            <pre className="data-explanation">
-                                {response.processed_data}
-                            </pre>
-                        </div> : <div>{"This dataset doesn't meet the modeling requirement." || "No data found"}</div>}
-                    </div>
-
+                        <h2 className="response-title">Outlier Detection Results</h2>
+                        <p className="status-text">Status: {response.status} True</p>
+                        <div className="processed-data">
+                            <h3 className="response-subtitle">Analysis Details:</h3>
+                            <pre className="data-explanation">{response.processed_data}</pre>
+                        </div>
                     </div>
                 );
+    
             case 'Arima':
-                // Parse the response data
                 let plotData;
                 try {
                     plotData = response?.path ? JSON.parse(response?.path) : null;
                 } catch (error) {
                     console.error('Error parsing plot data:', error);
-                    return <div>This dataset doesn't meet the modeling requirement.</div>;
+                    return <div className="error-text">This dataset doesn't meet the modeling requirement</div>;
                 }
+    
                 return (
-                    <div className="">
-                        <h2>ARIMA Model Results</h2>
-                        {/* <p>Status: {response?.status ? "True" : "False"}</p> */}
-                        {plotData ? <Plot
+                    <div className="response-container">
+                        <h2 className="response-title">ARIMA Model Results</h2>
+                        <p className="status-text">Status: {response?.status ? "True" : "False"}</p>
+                        {plotData && <Plot
                             data={plotData?.data}
-                            layout={plotData?.layout}
-                            config={{ responsive: true }}
-                            style={{
-                                width: "100%",
-                                height: "60vh",
-                                padding: "15px",
-                                backgroundColor: "#ffffff",
-                                borderRadius: "12px",
+                            layout={{
+                                ...plotData?.layout,
+                                autosize: true,
+                                plot_bgcolor: '#ffffff',
+                                paper_bgcolor: '#ffffff',
+                                margin: { l: 50, r: 50, t: 50, b: 50 }
                             }}
-                            className=""
-                        /> :<div>This dataset doesn't meet the modeling requirement.</div>}
+                            config={{ responsive: true }}
+                            className="arima-plot"
+                        />}
                     </div>
                 );
+    
             default:
-                return <pre>{JSON.stringify(response, null, 2)}</pre>;
+                return <pre className="default-response">{JSON.stringify(response, null, 2)}</pre>;
         }
     };
+    
 
     return (
-        <div className="container">
-            <h1 className="title">AI and Models</h1>
-            <form onSubmit={handleSubmit} className="styled-form">
-                <div className="form-group">
-                    <label className="label">
-                        Select Model
-                        <select 
-                            name="model" 
-                            id="model" 
-                            className="select"
-                            value={formData.model}
-                            onChange={handleModelChange}
-                        >
-                            <option value="" disabled hidden>Select your Model</option>
-                            <option value="RandomForest">Random Forest</option>
-                            <option value="K-Means">K-Means</option>
-                            <option value="Arima">Arima</option>
-                            <option value="OutlierDetection">Outlier Detection</option>
-                        </select>
-                    </label>
+        <div className="modern-container">
+            <h1 className="modern-title">AI and Models Analysis</h1>
+            
+            <form onSubmit={handleSubmit} className="modern-form">
+                <div className="tab-panel">
+                    <div className="tabs">
+                        {models.map((model) => (
+                            <button
+                                key={model.id}
+                                type="button"
+                                className={`tab-button ${formData.model === model.id ? 'active' : ''}`}
+                                onClick={() => handleModelChange(model.id)}
+                            >
+                                {model.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                <div className="form-group">
-                    <label className="label">
+                <div className="form-group2">
+                    <label className="modern-label">
                         Target Column
-                        <select 
-                            name="col" 
-                            id="cols" 
-                            className="select"
+                        <select
+                            name="col"
+                            className="modern-select"
                             value={formData.col}
                             onChange={handleColumnChange}
+                            disabled={!formData.model}
                         >
-                            <option value="" disabled hidden>Select target column</option>
+                            <option value="" disabled>Select target column</option>
                             {columns.map((column) => (
                                 <option key={column} value={column}>
                                     {column}
@@ -275,13 +309,61 @@ const AiAndModels = () => {
                     </label>
                 </div>
 
-                <button type="submit" className="submit-button" disabled={loading}>
+   {formData.model==="Arima"&&     <>
+                {/* New frequency dropdown */}
+                <div className="form-group2">
+                    <label className="modern-label">
+                        Frequency
+                        <select
+                            name="frequency"
+                            className="modern-select"
+                            value={formData.frequency}
+                            onChange={handleFrequencyChange}
+                        >
+                            {frequencyOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                </div>
+
+                {/* New tenure dropdown */}
+                <div className="form-group2">
+                    <label className="modern-label">
+                        Tenure
+                        <select
+                            name="tenure"
+                            className="modern-select"
+                            value={formData.tenure}
+                            onChange={handleTenureChange}
+                        >
+                            {tenureOptions.map((option) => (
+                                <option key={option} value={option}>
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                </div>
+
+        </>}
+                <button 
+                    type="submit" 
+                    className="modern-submit"
+                    disabled={loading || !formData.model || !formData.col}
+                >
                     {loading ? 'Analyzing...' : 'Analyze Data'}
                 </button>
             </form>
 
-            {loading && <div className="loading">Processing...</div>}
-            {response && renderResponse()}
+            {loading && <div className="modern-loading">Processing your data...</div>}
+            {response && (
+                <div className="response-wrapper">
+                    {renderResponse()}
+                </div>
+            )}
         </div>
     );
 };

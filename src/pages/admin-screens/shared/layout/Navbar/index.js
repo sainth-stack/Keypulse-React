@@ -3,8 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 // import "./styles.scss";
 // import userprofile from '../../assets/images/userprofile.png'
 import { useNavigate } from "react-router-dom";
-import Logo from '../../assets/images/logo3.png'
-import Logo2 from '../../assets/images/ai-priori.png'
+import Logo from '../../../../../assets/images/logo3.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
 import { useLocation } from "react-router-dom";
 function Navbar() {
@@ -31,13 +30,12 @@ function Navbar() {
       setName("KProcess")
     }
   }, [location.pathname])
-  const image=localStorage.getItem('logo')
-  const logo= image ? `data:image/png;base64,${image}` : null
+
 
   return (
     <>
-      <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm sticky-top bg-white-fixed" style={{zIndex:500}}>
-        <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingLeft:'40px',cursor:'pointer'}} id="navbarNav" onClick={()=>navigate('/')}>
+      <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm sticky-top bg-white-fixed" style={{zIndex:100}}>
+        <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingLeft:'40px'}} id="navbarNav">
           <img
             src={Logo}
             style={{ width: '70px',height:'70px' }}
@@ -51,7 +49,7 @@ function Navbar() {
 
         <div class="nav-item ms-1 dropdown d-flex align-items-center mr-0 pr-0" style={{ color: 'black' }}>
           <a
-            className="nav-link dropdown-toggle p-0 m-0 pe-2"
+            className="nav-link dropdown-toggle p-0 m-0 pe-5"
             href="/#"
             id="navbarDropdown"
             role="button"
@@ -69,13 +67,6 @@ function Navbar() {
             <span class="dropdown-item">Action</span>
             <span class="dropdown-item" onClick={() => handleLogout()}>Logout</span>
           </div>
-          <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingRight:'30px',paddingLeft:'10px'}} id="navbarNav">
-          <img
-            src={  Logo2}
-            style={{ width: '75px',height:'75px' }}
-            id="logo_RL"
-          />
-        </div>
         </div>
       </nav>
     </>

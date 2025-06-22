@@ -24,11 +24,16 @@ const Kpi = () => {
         setGeneratingKPIs(true); // Start loading
 
         try {
+            // Get user ID from localStorage
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const userId = user.id;
+
             const response = await axios.post(`${API_URL}/kpi_process`, 
                 `prompt=${encodeURIComponent(prompt)}`,
                 {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-User-ID': userId,
                     }
                 }
             );
@@ -57,11 +62,16 @@ const Kpi = () => {
             
             setSelectedKpiImage(prev => [...prev, newKpiImage]);
 
+            // Get user ID from localStorage
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const userId = user.id;
+
             const response = await axios.post(`${API_URL}/generate_code`,
                 `kpi_names=${encodeURIComponent(kpiName)}`,
                 {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-User-ID': userId,
                     }
                 }
             );

@@ -199,3 +199,9 @@ export const customStyles = {
         ...base, zIndex: 999, // Ensure the dropdown is rendered above other elements
     }),
 };
+
+
+export const isSuperAdmin=()=>{
+    const user=JSON.parse(localStorage.getItem('user') || "{}")
+    return user?.role.includes('super admin')
+}

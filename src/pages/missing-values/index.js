@@ -8,7 +8,15 @@ const MissingValues = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get(`${API_URL}/mvt`);
+                // Get user ID from localStorage
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                const userId = user.id;
+
+                const response = await axios.get(`${API_URL}/mvt`, {
+                    headers: {
+                        'X-User-ID': userId,
+                    }
+                });
                 const sanitizedData = JSON.stringify(response.data).replace(
                     /NaN/g,
                     "0"
