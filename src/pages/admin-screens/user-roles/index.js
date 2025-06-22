@@ -17,6 +17,7 @@ import {
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { isSuperAdmin } from '../../../utils';
+import { API_URL } from '../../../const';
 
 const PermissionChips = ({ permissions }) => {
   return (
@@ -70,7 +71,7 @@ const UserRoles = () => {
   const fetchRoles = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://54.169.213.200:4003/api/roles', {
+      const response = await axios.get(`${API_URL}/roles`, {
         params: {
           o_id: !isSuperAdmin() ? user?.organization : ''
         }
@@ -116,12 +117,12 @@ const UserRoles = () => {
       });
 
       if (editingId) {
-        await axios.post(`http://54.169.213.200:4003/api/modify_role/${editingId}`, formData, {
+        await axios.post(`${API_URL}/modify_role/${editingId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         message.success('Role updated successfully');
       } else {
-        await axios.post('http://54.169.213.200:4003/api/roles', formData, {
+        await axios.post(`${API_URL}/roles`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         message.success('Role created successfully');
@@ -140,7 +141,7 @@ const UserRoles = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://54.169.213.200:4003/api/modify_role/${id}`);
+      await axios.delete(`${API_URL}/modify_role/${id}`);
       message.success('Role deleted successfully');
       fetchRoles();
     } catch (error) {

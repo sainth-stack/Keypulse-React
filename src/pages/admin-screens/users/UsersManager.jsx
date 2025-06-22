@@ -26,7 +26,7 @@ const UsersManager = () => {
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
 
-  const API_URL = 'http://54.169.213.200:4003/api';
+  const API_URL = `${API_URL}/users`;
   
   // Get permissions from localStorage
   const permissions = JSON.parse(localStorage.getItem('permissions') || '[]');

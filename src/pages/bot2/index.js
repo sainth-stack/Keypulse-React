@@ -5,6 +5,7 @@ import Spinner from 'react-bootstrap/Spinner';
 import { Spin, Collapse, message } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
 import Bot from '../bot';
+import { API_URL } from '../../const';
 
 const Bot2 = () => {
   const [message, setMessage] = useState('');
@@ -35,7 +36,7 @@ const Bot2 = () => {
       const userId = user.id;
 
       try {
-        const response = await fetch('http://54.169.213.200:4004/api/file_upload', {
+        const response = await fetch(`${API_URL}/file_upload`, {
           method: 'POST',
           headers: {
             'X-User-ID': userId,
@@ -75,7 +76,7 @@ const Bot2 = () => {
     try {
       setIsLoading(true); // Ensure loading starts before the request
     
-      const endpoint = 'http://54.169.213.200:4003/api/genai_bot';
+      const endpoint = `${API_URL}/genai_bot`;
       
       const response = await fetch(endpoint, {
         method: 'POST',

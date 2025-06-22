@@ -30,7 +30,7 @@ export const Login = () => {
   const fetchRoles = async (roles) => {
     setLoading(true);
     try {
-      const response = await axios.get('http://54.169.213.200:4003/api/roles');
+      const response = await axios.get(`${API_URL}/roles`);
       const permissions = [];
       console.log(roles); // Debugging: ['super admin']
   

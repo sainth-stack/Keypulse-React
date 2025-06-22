@@ -17,7 +17,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
     const handleGetAnswer = async (question, data) => {
         var formData = new FormData();
         formData.append('prompt', question);
-        const endpoint = 'http://54.169.213.200:4003/api/genai_bot';
+        const endpoint = `${API_URL}/genai_bot`;
 
         // Get user ID from localStorage
         const user = JSON.parse(localStorage.getItem('user') || '{}');

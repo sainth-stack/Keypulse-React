@@ -71,7 +71,7 @@ const UserSessions = () => {
         params.endDate = moment(filterParams.dateRange[1]).format('YYYY-MM-DD');
       }
 
-      const response = await axios.get('http://54.169.213.200:4003/api/sessions', {
+      const response = await axios.get(`${API_URL}/sessions`, {
         params
       });
 
@@ -125,7 +125,7 @@ const UserSessions = () => {
   const fetchOrganizations = async () => {
     if (isSuperAdmin()) {
       try {
-        const response = await axios.get('http://54.169.213.200:4003/api/organizations');
+        const response = await axios.get(`${API_URL}/organizations`);
         setOrganizations(response.data.organizations);
       } catch (error) {
         message.error('Failed to fetch organizations');
@@ -155,12 +155,12 @@ const UserSessions = () => {
       formData.append('status', values.status);
 
       if (editingId) {
-        await axios.put(`http://54.169.213.200:4003/api/sessions/${editingId}`, formData, {
+        await axios.put(`${API_URL}/sessions/${editingId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         message.success('Session updated successfully');
       } else {
-        await axios.post('http://54.169.213.200:4003/api/sessions', formData, {
+        await axios.post(`${API_URL}/sessions`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         message.success('Session created successfully');
@@ -180,7 +180,7 @@ const UserSessions = () => {
   // Handle session deletion
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://54.169.213.200:4003/api/sessions/${id}`);
+      await axios.delete(`${API_URL}/sessions/${id}`);
       message.success('Session deleted successfully');
       fetchSessions();
     } catch (error) {
