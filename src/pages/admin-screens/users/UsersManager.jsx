@@ -14,6 +14,7 @@ import {
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { isSuperAdmin } from '../../../utils';
+import { API_URL } from '../../../const';
 
 const UsersManager = () => {
   const [users, setUsers] = useState([]);
@@ -26,7 +27,7 @@ const UsersManager = () => {
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
 
-  const API_URL = `${API_URL}/users`;
+  // const API_URL = `${API_URL}/users`;
   
   // Get permissions from localStorage
   const permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
