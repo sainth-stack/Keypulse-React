@@ -1,5 +1,5 @@
 import Logo from "../../assets/images/logo3.png";
-import loginbg from "../../assets/svg/loginbg.svg";
+import loginbg from "../../assets/svg/loginbg1.png";
 import eye from "../../assets/svg/eye-fill.svg";
 import eye2 from "../../assets/svg/eye-slash.svg";
 import { useState } from "react";
@@ -168,8 +168,8 @@ export const Login = () => {
         <h5 className="text-green font-weight-bold mt-2" style={{fontWeight:700,fontSize:'28px'}}>WELCOME TO DATAPX1</h5>
         {/* <h3 className="mt-3">Your Digital Growth Partner <br /> For Manufacturing</h3> */}
         <div className="d-flex justify-content-center">
-          <div className="col-md-10">
-            <img className="img-fluid p-3" src={loginbg} alt="Logo" />
+          <div className="col-md-10" style={{borderRadius:'30px'}}>
+            <img className="img-fluid p-3" src={loginbg} alt="Logo" style={{borderRadius:'30px'}}/>
           </div>
         </div>
       </div>

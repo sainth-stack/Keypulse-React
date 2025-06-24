@@ -7,7 +7,7 @@ const AiAndModels = () => {
     const [response, setResponse] = useState(null);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        model: 'RandomForest', // Default set to RandomForest
+        model: 'Prediction', // Default set to Prediction
         col: '',
         frequency: 'days', // Default frequency
         tenure: '1' // Default tenure
@@ -25,10 +25,10 @@ const AiAndModels = () => {
     const columns = fileData && Object.keys(fileData)?.length > 0 ? Object.keys(fileData) : [];
 
     const models = [
-        { id: 'RandomForest', label: 'Random Forest' },
-        { id: 'K-Means', label: 'K-Means' },
-        { id: 'Arima', label: 'ARIMA' },
-        { id: 'OutlierDetection', label: 'Outlier Detection' }
+        { id: 'Classification', label: 'Classification', description: 'Discover hidden patterns and segment data using clustering' },
+        { id: 'Prediction', label: 'Prediction', description: 'Categorize data into distinct groups using supervised learning' },
+        { id: 'Forecast', label: 'Forecast', description: 'Time-series forecasting for trend analysis' },
+        { id: 'OutlierDetection', label: 'Outlier Detection', description: 'Identify anomalies and unusual patterns' }
     ];
 
     const frequencyOptions = [
@@ -70,6 +70,14 @@ const AiAndModels = () => {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id;
 
+            // Map business terms to technical models
+            const modelMapping = {
+                'Classification': 'K-Means',
+                'Prediction': 'RandomForest',
+                'Forecast': 'Arima',
+                'OutlierDetection': 'OutlierDetection'
+            };
+
             const response = await fetch(`${API_URL}/models`, {
                 method: 'POST',
                 headers: {
@@ -77,7 +85,7 @@ const AiAndModels = () => {
                     'X-User-ID': userId,
                 },
                 body: new URLSearchParams({
-                    model: formData.model,
+                    model: modelMapping[formData.model],
                     col: formData.col,
                     frequency: formData.frequency,
                     tenure: formData.tenure
@@ -102,11 +110,74 @@ const AiAndModels = () => {
         }
     
         switch (formData.model) {
-            case 'RandomForest':
+            case 'Classification':
+                let clusteredData;
+                try {
+                    clusteredData = JSON.parse(response.clustered_data);
+                } catch (error) {
+                    console.error('Error parsing clustered_data:', error);
+                    return <div className="error-text">This dataset doesn't meet the clustering requirements</div>;
+                }
+    
+                const tableColumns = Object.keys(clusteredData);
+                const rows = Object.keys(clusteredData[tableColumns[0]]).map(rowIndex => {
+                    const row = {};
+                    tableColumns.forEach(col => {
+                        row[col] = clusteredData[col][rowIndex];
+                    });
+                    return row;
+                });
+    
+                return (
+                    <div className="response-container">
+                        <h2 className="response-title">Pattern Recognition Results</h2>
+                        <div className="business-inference">
+                            <h3>Business Insights:</h3>
+                            <p>
+                                This analysis discovers hidden patterns in your <strong>{formData.col}</strong> data by grouping similar records together. 
+                                These clusters reveal natural segments in your data that can inform customer targeting, product positioning, and strategic decisions.
+                            </p>
+                        </div>
+                        <p className="status-text">Analysis Status: {response.status ? 'Successfully Completed' : 'Analysis Failed'}</p>
+                        <p className="status-text">Clusters Identified: {response.cluster}</p>
+                        <div className="table-container">
+                            <table className="clustered-data-table">
+                                <thead>
+                                    <tr>
+                                        {tableColumns.map(col => (
+                                            <th key={col}>{col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.map((row, index) => (
+                                        <tr key={index}>
+                                            {tableColumns.map(col => (
+                                                <td key={`${index}-${col}`}>
+                                                    {typeof row[col] === 'number' 
+                                                        ? row[col].toFixed(2) 
+                                                        : row[col]}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+    
+            case 'Prediction':
                 return (
                     <div className="rf-container">
-                        <h2 className="response-title">Random Forest Prediction</h2>
-                        <p className="status-text">Status: {response.status} True</p>
+                        <h2 className="response-title">Prediction Analysis</h2>
+                        <div className="business-inference">
+                            <h3>Business Insights:</h3>
+                            <p>
+                                This model can categorize your {formData.col} data into distinct groups, helping you understand different segments in your business data.
+                            </p>
+                        </div>
+                        <p className="status-text">Model Status: {response.status ? 'Successfully Trained' : 'Training Failed'}</p>
                         <div className="rf-content">
                             <form className="rf-input-form" onSubmit={async (e) => {
                                 e.preventDefault();
@@ -139,10 +210,11 @@ const AiAndModels = () => {
                                 }
                             }}>
                                 <div className="rf-inputs">
+                                    <h4>Enter Values for Prediction:</h4>
                                     {response.rf_cols?.map((col) => (
                                         <div key={col} className="rf-form-group">
                                             <label className="rf-label">
-                                                {col.replace(/_/g, ' ')}
+                                                {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                                 <input
                                                     type={col.toLowerCase().includes('date') ? 'date' : 'text'}
                                                     className="rf-input"
@@ -152,6 +224,7 @@ const AiAndModels = () => {
                                                         [col]: e.target.value
                                                     }))}
                                                     required
+                                                    placeholder={`Enter ${col.replace(/_/g, ' ')}`}
                                                 />
                                             </label>
                                         </div>
@@ -166,6 +239,12 @@ const AiAndModels = () => {
                                     <div className="prediction-result">
                                         <h3>Prediction Result:</h3>
                                         <p className="result-value">{response.rf_result}</p>
+                                        <div className="business-interpretation">
+                                            <h4>Business Interpretation:</h4>
+                                            <p>
+                                                Based on the input data, this record belongs to the "{response.rf_result}" category. This prediction can help you understand customer segments, risk categories, or performance tiers.
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -173,93 +252,63 @@ const AiAndModels = () => {
                     </div>
                 );
     
-            case 'K-Means':
-                let clusteredData;
+            case 'Forecast':
+                let plotData;
                 try {
-                    clusteredData = JSON.parse(response.clustered_data);
+                    plotData = response?.path ? JSON.parse(response?.path) : null;
                 } catch (error) {
-                    console.error('Error parsing clustered_data:', error);
-                    return <div className="error-text">This dataset doesn't meet the modeling requirement</div>;
+                    console.error('Error parsing plot data:', error);
+                    return <div className="error-text">This dataset doesn't meet the forecasting requirements</div>;
                 }
-    
-                const tableColumns = Object.keys(clusteredData);
-                const rows = Object.keys(clusteredData[tableColumns[0]]).map(rowIndex => {
-                    const row = {};
-                    tableColumns.forEach(col => {
-                        row[col] = clusteredData[col][rowIndex];
-                    });
-                    return row;
-                });
     
                 return (
                     <div className="response-container">
-                        <h2 className="response-title">Clustering Results</h2>
-                        <p className="status-text">Status: {response.status} True</p>
-                        <p className="status-text">Clusters: {response.cluster} True</p>
-                        <div className="table-container">
-                            <table className="clustered-data-table">
-                                <thead>
-                                    <tr>
-                                        {tableColumns.map(col => (
-                                            <th key={col}>{col}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {rows.map((row, index) => (
-                                        <tr key={index}>
-                                            {tableColumns.map(col => (
-                                                <td key={`${index}-${col}`}>
-                                                    {typeof row[col] === 'number' 
-                                                        ? row[col].toFixed(2) 
-                                                        : row[col]}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <h2 className="response-title">Time Series Forecast Results</h2>
+                        <div className="business-inference">
+                            <h3>Business Insights:</h3>
+                            <p>
+                                This forecast analysis predicts future trends for <strong>{formData.col}</strong> over the next {formData.tenure} {formData.frequency}. 
+                                The model identifies seasonal patterns, trends, and potential future values to support strategic planning and resource allocation.
+                            </p>
                         </div>
+                        <p className="status-text">Forecast Status: {response?.status ? "Successfully Generated" : "Generation Failed"}</p>
+                        {plotData && (
+                            <>
+                                <Plot
+                                    data={plotData?.data}
+                                    layout={{
+                                        ...plotData?.layout,
+                                        autosize: true,
+                                        plot_bgcolor: '#ffffff',
+                                        paper_bgcolor: '#ffffff',
+                                        margin: { l: 50, r: 50, t: 50, b: 50 }
+                                    }}
+                                    config={{ responsive: true }}
+                                    className="arima-plot"
+                                />
+
+                            </>
+                        )}
                     </div>
                 );
     
             case 'OutlierDetection':
                 return (
                     <div className="response-container">
-                        <h2 className="response-title">Outlier Detection Results</h2>
-                        <p className="status-text">Status: {response.status} True</p>
+                        <h2 className="response-title">Anomaly Detection Results</h2>
+                        <div className="business-inference">
+                            <h3>Business Insights:</h3>
+                            <p>
+                                This analysis identifies unusual patterns or anomalies in your <strong>{formData.col}</strong> data. 
+                                Outliers can indicate data quality issues, fraud, exceptional performance, or opportunities for investigation.
+                            </p>
+                        </div>
+                        <p className="status-text">Detection Status: {response.status ? 'Analysis Complete' : 'Analysis Failed'}</p>
                         <div className="processed-data">
                             <h3 className="response-subtitle">Analysis Details:</h3>
                             <pre className="data-explanation">{response.processed_data}</pre>
+
                         </div>
-                    </div>
-                );
-    
-            case 'Arima':
-                let plotData;
-                try {
-                    plotData = response?.path ? JSON.parse(response?.path) : null;
-                } catch (error) {
-                    console.error('Error parsing plot data:', error);
-                    return <div className="error-text">This dataset doesn't meet the modeling requirement</div>;
-                }
-    
-                return (
-                    <div className="response-container">
-                        <h2 className="response-title">ARIMA Model Results</h2>
-                        <p className="status-text">Status: {response?.status ? "True" : "False"}</p>
-                        {plotData && <Plot
-                            data={plotData?.data}
-                            layout={{
-                                ...plotData?.layout,
-                                autosize: true,
-                                plot_bgcolor: '#ffffff',
-                                paper_bgcolor: '#ffffff',
-                                margin: { l: 50, r: 50, t: 50, b: 50 }
-                            }}
-                            config={{ responsive: true }}
-                            className="arima-plot"
-                        />}
                     </div>
                 );
     
@@ -282,10 +331,14 @@ const AiAndModels = () => {
                                 type="button"
                                 className={`tab-button ${formData.model === model.id ? 'active' : ''}`}
                                 onClick={() => handleModelChange(model.id)}
+                                title={model.description}
                             >
                                 {model.label}
                             </button>
                         ))}
+                    </div>
+                    <div className="model-description">
+                        <p>{models.find(m => m.id === formData.model)?.description}</p>
                     </div>
                 </div>
 
@@ -309,7 +362,7 @@ const AiAndModels = () => {
                     </label>
                 </div>
 
-   {formData.model==="Arima"&&     <>
+   {formData.model==="Forecast"&&     <>
                 {/* New frequency dropdown */}
                 <div className="form-group2">
                     <label className="modern-label">
@@ -332,7 +385,7 @@ const AiAndModels = () => {
                 {/* New tenure dropdown */}
                 <div className="form-group2">
                     <label className="modern-label">
-                        Tenure
+                        Forecast Period
                         <select
                             name="tenure"
                             className="modern-select"
@@ -341,7 +394,7 @@ const AiAndModels = () => {
                         >
                             {tenureOptions.map((option) => (
                                 <option key={option} value={option}>
-                                    {option}
+                                    {option} {formData.frequency}
                                 </option>
                             ))}
                         </select>
@@ -354,7 +407,7 @@ const AiAndModels = () => {
                     className="modern-submit"
                     disabled={loading || !formData.model || !formData.col}
                 >
-                    {loading ? 'Analyzing...' : 'Analyze Data'}
+                    {loading ? 'Analyzing...' : `Run ${formData.model} Analysis`}
                 </button>
             </form>
 

@@ -52,7 +52,7 @@ const DataAnalysis = () => {
       { label: 'Total Records', value: apiData.nof_rows },
       { label: 'Feature of Features', value: apiData.nof_columns },
       { label: 'Time Stamp Data', value: apiData.timestamp },
-      { label: 'Missing Records', value: apiData.missing_data },
+      // { label: 'Missing Records', value: apiData.missing_data },
       { label: 'Stationary', value: apiData.stationary },
       { label: 'Sentiment', value: apiData.sentiment },
     ];
@@ -272,7 +272,7 @@ const DataAnalysis = () => {
         {renderAccordionSection('Data Overview', renderTable())}
         {renderAccordionSection('Feature Analysis', renderCategoricalAnalysis())}
         {renderAccordionSection('Numerical Analysis', renderNumericalAnalysis())}
-        {renderAccordionSection('Missing Value Analysis', renderMissingValueAnalysis())}
+        {/* {renderAccordionSection('Missing Value Analysis', renderMissingValueAnalysis())} */}
         {/* {renderAccordionSection('Visualizations', renderPlots())} */}
       </div>
     </div>

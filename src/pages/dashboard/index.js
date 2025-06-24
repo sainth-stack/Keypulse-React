@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { API_URL } from "../../const";
 import Plot from "react-plotly.js";
 import { Card, CardContent, Typography, Grid } from "@mui/material";
@@ -8,9 +8,14 @@ import './index.css'
 const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls
+    if (hasFetched.current) return;
+    
     const fetchData = async () => {
+      hasFetched.current = true;
       setLoading(true);
       try {
         // Get user ID from localStorage
@@ -27,12 +32,20 @@ const Dashboard = () => {
         setData(plots);
       } catch (error) {
         console.error("Error fetching data:", error);
+        // Reset flag on error so user can retry
+        hasFetched.current = false;
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+
+    // Cleanup function
+    return () => {
+      // Reset flag when component unmounts
+      hasFetched.current = false;
+    };
   }, []);
 
   const parsedData = data

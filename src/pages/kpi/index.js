@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { API_URL } from '../../const.js';
 import axios from 'axios';
 import Plot from 'react-plotly.js';
 import { Spin, Collapse, message } from 'antd';
 import { LoadingOutlined, CopyOutlined } from '@ant-design/icons';
+import { LoadingIndicator } from '../../components/loader';
 import './index.css';
 
 const Kpi = () => {
@@ -13,6 +14,47 @@ const Kpi = () => {
     const [loadingImage, setLoadingImage] = useState(false);
     const [selectedKpiNames, setSelectedKpiNames] = useState([]);
     const [generatingKPIs, setGeneratingKPIs] = useState(false); // New state for KPI generation loading
+    const [initialLoading, setInitialLoading] = useState(true); // New state for initial page loading
+    const hasInitializedRef = useRef(false); // Use ref to prevent multiple initial calls
+
+    // Auto-generate default KPIs when component mounts
+    useEffect(() => {
+        const generateDefaultKPIs = async () => {
+            // Prevent multiple calls during initial loading
+            if (hasInitializedRef.current) return;
+            
+            hasInitializedRef.current = true;
+            
+            try {
+                // Get user ID from localStorage
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                const userId = user.id;
+
+                const defaultPrompt = "Generate 4 KPIs based on the dataset";
+
+                const response = await axios.post(`${API_URL}/kpi_process`, 
+                    `prompt=${encodeURIComponent(defaultPrompt)}`,
+                    {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-User-ID': userId,
+                        }
+                    }
+                );
+                setKpis(response?.data?.kpis || []);
+                // Don't show success message for initial load
+            } catch (error) {
+                console.error('Error fetching default KPIs:', error);
+                message.error('Failed to generate default KPIs');
+                // Reset flag on error so user can retry
+                hasInitializedRef.current = false;
+            } finally {
+                setInitialLoading(false);
+            }
+        };
+
+        generateDefaultKPIs();
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -126,6 +168,11 @@ const Kpi = () => {
             });
     };
 
+    // Show initial loading indicator
+    if (initialLoading) {
+        return <LoadingIndicator message="" />;
+    }
+
     return (
         <div className="kpi-container">
             <h1 className="kpi-title">KPI Generator</h1>
@@ -148,7 +195,12 @@ const Kpi = () => {
                     </Spin>
                 </div>
             </form>
-
+                         {Object.keys(kpis)?.length > 0 && (
+                 <div className="kpi-message">
+                     <p>Below are the suggested {Object.keys(kpis).length} KPIs based on the input data.</p>
+                 </div>
+             )}
+            
             {Object.keys(kpis)?.length > 0 && (
                 <div className="kpi-grid">
                     {Object.entries(kpis).map(([key, kpi]) => (

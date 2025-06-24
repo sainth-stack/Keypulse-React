@@ -1,6 +1,6 @@
 import Logo from "../../assets/images/logo3.png";
 
-import loginbg from "../../assets/svg/loginbg.svg";
+import loginbg from "../../assets/svg/loginbg1.png";
 import eye from "../../assets/svg/eye-fill.svg";
 import eye2 from "../../assets/svg/eye-slash.svg";
 import { useState } from "react";
