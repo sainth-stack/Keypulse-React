@@ -132,6 +132,39 @@
     text-align: center;
 }
 
+/* Ignored Columns Specific Styles */
+.details-section .details-header {
+    grid-template-columns: 2fr 1fr 1fr;
+}
+
+.details-section .details-table .details-header:has(.details-reason) {
+    grid-template-columns: 1fr 2fr;
+}
+
+.details-section .details-table .details-row.ignored-column-row {
+    grid-template-columns: 1fr 2fr;
+}
+
+.details-reason {
+    color: #6b7280;
+    font-style: italic;
+    padding-left: 0.5rem;
+}
+
+.ignored-column-row {
+    background-color: #fef3c7;
+    border-left: 3px solid #f59e0b;
+}
+
+.ignored-column-row:hover {
+    background-color: #fef3c7;
+}
+
+.ignored-column-row .details-column-name {
+    color: #92400e;
+    font-weight: 500;
+}
+
 /* Table Section - Full Height */
 .table-section {
     background: white;

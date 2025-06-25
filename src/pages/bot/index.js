@@ -7,7 +7,7 @@ import { CircularProgress } from '@mui/material';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const Bot = () => {
+const Bot = ({ onFileUploadComplete }) => {
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState(localStorage.getItem('fileName') || "");
   const [isUploading, setIsUploading] = useState(false);
@@ -56,6 +56,11 @@ const Bot = () => {
           pauseOnHover: true,
           draggable: true,
         });
+
+        // Call the callback to trigger initial processing in Bot2
+        if (onFileUploadComplete) {
+          onFileUploadComplete(data);
+        }
 
         // Navigate to data-analysis page
         // navigate('/data-analysis');

@@ -30,7 +30,8 @@ const DataAnalysis = () => {
             headers: {
               'X-User-ID': userId,
             },
-          })        ]);
+          })    
+            ]);
         
         const data = await dataResponse.json();
         const plots = {...data?.barplots, ...data?.pieplots, ...data?.scatterplots, ...data?.boxplots};
@@ -50,7 +51,7 @@ const DataAnalysis = () => {
     
     const stats = [
       { label: 'Total Records', value: apiData.nof_rows },
-      { label: 'Feature of Features', value: apiData.nof_columns },
+      { label: 'Number of Columns', value: apiData.nof_columns },
       { label: 'Time Stamp Data', value: apiData.timestamp },
       // { label: 'Missing Records', value: apiData.missing_data },
       { label: 'Stationary', value: apiData.stationary },

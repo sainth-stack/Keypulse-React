@@ -235,6 +235,25 @@ const MissingValues = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Ignored Columns */}
+                    {summary.ignored_columns && Object.keys(summary.ignored_columns).length > 0 && (
+                        <div className="details-section" style={{ marginTop: '2rem' }}>
+                            <h3>Ignored Columns</h3>
+                            <div className="details-table">
+                                <div className="details-header">
+                                    <div className="details-column-name">Column Name</div>
+                                    <div className="details-reason">Reason</div>
+                                </div>
+                                {Object.entries(summary.ignored_columns).map(([column, reason]) => (
+                                    <div key={column} className="details-row ignored-column-row">
+                                        <div className="details-column-name">{column}</div>
+                                        <div className="details-reason">{reason}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

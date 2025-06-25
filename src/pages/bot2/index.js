@@ -6,17 +6,74 @@ import { Spin, Collapse, message } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
 import Bot from '../bot';
 import { API_URL } from '../../const';
+import { LoadingIndicator } from '../../components/loader';
 
 const Bot2 = () => {
   const [message, setMessage] = useState('');
   const [file, setFile] = useState(null);
   const [messageType, setMessageType] = useState('text');
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialFileProcessing, setIsInitialFileProcessing] = useState(false);
   const [messages, setMessages] = useState([
-    { type: 'bot', content: 'Hello! How can I assist you today?' }
+    
   ]);
   const [recentChats, setRecentChats] = useState([]);
   const [visualizationData, setVisualizationData] = useState(null);
+
+  // Callback function to handle file upload completion
+  const handleFileUploadComplete = async (uploadData) => {
+    // Reset chat messages to initial state
+    // setMessages([
+    //   { type: 'bot', content: 'Hello! How can I assist you today?' }
+    // ]);
+    
+    // Reset recent chats
+    setRecentChats([]);
+    
+    setIsInitialFileProcessing(true);
+
+    // Get user ID from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    try {
+      const formData = new FormData();
+      formData.append('prompt', 'describe the data');
+
+      const response = await fetch(`${API_URL}/genai_bot`, {
+        method: 'POST',
+        headers: {
+          'X-User-ID': userId,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Add the automatic data description to messages
+      setMessages(prev => [...prev, { 
+        type: 'bot', 
+        content: data?.chart_response ? "" : data?.text_output || data?.text_pre_code_response,
+        plotsData: data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
+        code: data?.code || "Not Found",
+        data: data?.data ? JSON.parse(data?.data) : ""
+      }]);
+
+    } catch (error) {
+      console.error('Error processing initial file:', error);
+      setMessages(prev => [...prev, { 
+        type: 'bot', 
+        content: 'File uploaded successfully! I encountered an issue describing the data, but you can ask me questions about it.',
+        code: 'Not Found'
+      }]);
+    } finally {
+      setIsInitialFileProcessing(false);
+    }
+  };
 
   const handleMessageChange = (e) => {
     setMessage(e.target.value);
@@ -140,9 +197,13 @@ const Bot2 = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+  
   return (
    <div>
-    <Bot />
+    <Bot onFileUploadComplete={handleFileUploadComplete} />
+    {isInitialFileProcessing && (
+      <LoadingIndicator message="Processing your uploaded file and analyzing data..." />
+    )}
      <div className="chat-container">
       <div className="recent-chats">
         <h3>Recent Chats</h3>
