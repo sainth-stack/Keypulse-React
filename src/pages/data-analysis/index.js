@@ -146,7 +146,16 @@ const DataAnalysis = () => {
     if (!apiData?.numdf || apiData.numdf == 'No data') return <p>No data available</p>;
 
     const numData = JSON.parse(apiData.numdf);
-    const headers = Object.keys(numData[0]);
+    
+    // Check if numData is an array or object
+    if (!Array.isArray(numData) || numData.length === 0) {
+      return <p>No numerical data available</p>;
+    }
+
+    // Extract column names and statistical metrics
+    const columnNames = numData.map(item => item.ColumnName || 'Unknown Column');
+    const metricKeys = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max'];
+    const metricLabels = ['Count', 'Mean', 'Std Dev', 'Min', '25th Percentile', 'Median', '75th Percentile', 'Max'];
     
     return (
       <div className="table-container">
@@ -154,18 +163,27 @@ const DataAnalysis = () => {
           <thead>
             <tr>
               <th>Metric</th>
-              {headers.map((header, index) => (
-                <th key={index}>{header}</th>
+              {columnNames.map((columnName, index) => (
+                <th key={index}>{columnName}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {numData.map((row, index) => (
-              <tr key={index}>
-                <td><strong>Variable {index + 1}</strong></td>
-                {headers.map((header, colIndex) => (
-                  <td key={colIndex}>{Number(row[header]).toFixed(2)}</td>
-                ))}
+            {metricKeys.map((metricKey, metricIndex) => (
+              <tr key={metricKey}>
+                <td><strong>{metricLabels[metricIndex]}</strong></td>
+                {numData.map((columnData, columnIndex) => {
+                  const value = columnData[metricKey];
+                  const numericValue = Number(value);
+                  return (
+                    <td key={columnIndex}>
+                      {isNaN(numericValue) || value === null || value === undefined 
+                        ? 'N/A' 
+                        : numericValue.toFixed(2)
+                      }
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

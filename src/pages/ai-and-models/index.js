@@ -306,8 +306,10 @@ const AiAndModels = () => {
                         <p className="status-text">Detection Status: {response.status ? 'Analysis Complete' : 'Analysis Failed'}</p>
                         <div className="processed-data">
                             <h3 className="response-subtitle">Analysis Details:</h3>
-                            <pre className="data-explanation">{response.processed_data}</pre>
-
+                            <div 
+                                className="data-explanation" 
+                                dangerouslySetInnerHTML={{ __html: response.processed_data }}
+                            />
                         </div>
                     </div>
                 );
