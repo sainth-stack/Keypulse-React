@@ -31,12 +31,10 @@ const OrganizationsManager = () => {
 
   const fetchOrganizations = async (data) => {
     setLoading(true);
-    const response = await axios.get(`${API_URL}/organizations/${user?.organization}`);
-    const tenant_id = response.data['Organization Details']['Tenant id'];
     try {
       const response = await axios.get(`${API_URL}/organizations`, {
         params: {
-          tenant_id: !isSuperAdmin() ? tenant_id : ''
+          tenant_id: !isSuperAdmin() ? user?.tenant : ''
         }
       });
       const dataWithIndex = response?.data?.organizations?.map((org, index) => ({

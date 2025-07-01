@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Table,
   Button,
@@ -27,112 +27,131 @@ const UsersManager = () => {
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
 
-  // const API_URL = `${API_URL}/users`;
-  
-  // Get permissions from localStorage
-  const permissions = JSON.parse(localStorage.getItem('permissions') || '[]');
-  const user=JSON.parse(localStorage.getItem('user') || "{}")
+  // Ref to track if initial load is done
+  const initialLoadRef = useRef(false);
 
-  // Fetch users
-  const fetchUsers = async () => {
-    setLoading(true);
+  // Get permissions for UI rendering (memoized to prevent unnecessary re-renders) 
+  const permissions = useMemo(() => {
     try {
-      const response = await axios.get(`${API_URL}/users`,{
-        params:{
-          organization_id: !isSuperAdmin()? user?.organization :''
+      return JSON.parse(localStorage.getItem('permissions') || '[]');
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Memoized permission checks
+  const { canCreate, canUpdate, canDelete } = useMemo(() => ({
+    canCreate: permissions.includes("users_Create"),
+    canUpdate: permissions.includes("users_Write"),
+    canDelete: permissions.includes("users_Delete"),
+  }), [permissions]);
+
+  // Fetch only users data (for refresh after operations)
+  const fetchUsers = useCallback(async () => {
+    try {
+      // Get current values directly from localStorage
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentIsSuper = isSuperAdmin();
+      
+      const response = await axios.get(`${API_URL}/users`, {
+        params: {
+          organization_id: !currentIsSuper ? currentUser?.organization : ''
         }
       });
-      const dataWithIndex = (isSuperAdmin() ?(response?.data) :response?.data?.users)?.map((user, index) => ({
+      
+      const usersData = (currentIsSuper ? response?.data : response?.data?.users) || [];
+      const processedUsers = usersData.map((user, index) => ({
         ...user,
         key: user.id,
         sno: index + 1,
       }));
-      setUsers(dataWithIndex);
+      setUsers(processedUsers);
     } catch (error) {
-      message.error('Failed to fetch users');
-    } finally {
-      setLoading(false);
+      message.error('Failed to refresh users data');
     }
-  };
-
-  // Fetch organizations
-  const fetchOrganizations = async () => {
-    setLoading(true);
-    try {
-      const response2 = await axios.get(`${API_URL}/organizations/${user?.organization}`)
-      const tenant_id=response2.data['Organization Details']['Tenant id']
-      const response = await axios.get(`${API_URL}/organizations`,{
-        params: {
-          tenant_id:!isSuperAdmin()? tenant_id:''
-        },
-      });
-      const tenantResponse = await axios.get(`${API_URL}/tenants`);
-      const tenantData = tenantResponse?.data?.tenants || [];
-      const dataWithIndex = response?.data?.organizations?.map((org, index) => ({
-        ...org,
-        tenant: tenantData.find((item) => item?.id === org?.tenant)?.name || '',
-        key: org.id,
-        sno: index + 1,
-      }));
-      setOrganizations(dataWithIndex);
-    } catch (error) {
-      message.error('Failed to fetch organizations');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch roles
-  const fetchRoles = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get(`${API_URL}/roles`,{
-        params:{
-          o_id:!isSuperAdmin() ?user?.organization:''
-        }
-      });
-      const dataWithIndex = response?.data?.roles?.map((role, index) => ({
-        ...role,
-        key: role.id,
-        sno: index + 1,
-      }));
-      setRoles(dataWithIndex);
-    } catch (error) {
-      message.error('Failed to fetch roles');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch tenants (for organization mapping)
-  const fetchTenants = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get(`${API_URL}/tenants`);
-      const dataWithIndex = response?.data?.tenants?.map((tenant, index) => ({
-        ...tenant,
-        key: tenant.id,
-        sno: index + 1,
-      }));
-      setTenants(dataWithIndex);
-    } catch (error) {
-      message.error('Failed to fetch tenants');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-    fetchOrganizations();
-    fetchRoles();
-    fetchTenants();
   }, []);
 
-  // Check specific permissions
-  const canCreate = permissions.includes("users_Create");
-  const canUpdate = permissions.includes("users_Write");
-  const canDelete = permissions.includes("users_Delete");
+  // Initial data load effect - runs only once
+  useEffect(() => {
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+      
+      const loadData = async () => {
+        setLoading(true);
+        
+        try {
+          // Get current values directly from localStorage
+          const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+          const currentIsSuper = isSuperAdmin();
+
+          // Execute all API calls in parallel
+          const [usersResponse, orgResponse, tenantsResponse, rolesResponse] = await Promise.all([
+            axios.get(`${API_URL}/users`, {
+              params: {
+                organization_id: !currentIsSuper ? currentUser?.organization : ''
+              }
+            }),
+            axios.get(`${API_URL}/organizations`, {
+              params: {
+                tenant_id: !currentIsSuper ? currentUser?.tenant : ''
+              }
+            }),
+            axios.get(`${API_URL}/tenants`),
+            axios.get(`${API_URL}/roles`, {
+              params: {
+                o_id: !currentIsSuper ? currentUser?.organization : ''
+              }
+            })
+          ]);
+
+          // Process users data
+          const usersData = (currentIsSuper ? usersResponse?.data : usersResponse?.data?.users) || [];
+          const processedUsers = usersData.map((user, index) => ({
+            ...user,
+            key: user.id,
+            sno: index + 1,
+          }));
+          setUsers(processedUsers);
+
+          // Process tenants data
+          const tenantsData = tenantsResponse?.data?.tenants || [];
+          const processedTenants = tenantsData.map((tenant, index) => ({
+            ...tenant,
+            key: tenant.id,
+            sno: index + 1,
+          }));
+          setTenants(processedTenants);
+
+          // Process organizations data
+          const orgsData = orgResponse?.data?.organizations || [];
+          const processedOrgs = orgsData.map((org, index) => ({
+            ...org,
+            tenant: tenantsData.find((item) => item?.id === org?.tenant)?.name || '',
+            key: org.id,
+            sno: index + 1,
+          }));
+          setOrganizations(processedOrgs);
+
+          // Process roles data
+          const rolesData = rolesResponse?.data?.roles || [];
+          const processedRoles = rolesData.map((role, index) => ({
+            ...role,
+            key: role.id,
+            sno: index + 1,
+          }));
+          setRoles(processedRoles);
+
+        } catch (error) {
+          console.error('Failed to fetch data:', error);
+          message.error('Failed to load data. Please try again.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      loadData();
+    }
+  }, []); // Empty dependency array - this effect runs only once
 
   // Handle form submission
   const handleSubmit = async (values) => {
@@ -142,7 +161,7 @@ const UsersManager = () => {
       formData.append('username', values.username);
       formData.append('email', values.email);
       formData.append('organization', values.organization);
-      formData.append('roles', values.roles.join(',')); // Convert array to comma-separated string
+      formData.append('roles', values.roles.join(','));
 
       if (editingId) {
         await axios.post(`${API_URL}/users/${editingId}`, formData, {
@@ -164,7 +183,9 @@ const UsersManager = () => {
       setIsModalOpen(false);
       form.resetFields();
       setEditingId(null);
-      fetchUsers();
+      
+      // Refresh only users data
+      await fetchUsers();
     } catch (error) {
       message.error(error.response?.data?.message || 'Operation failed');
     } finally {
@@ -177,13 +198,16 @@ const UsersManager = () => {
     try {
       await axios.delete(`${API_URL}/users/${id}`);
       message.success('User deleted successfully');
-      fetchUsers();
+      
+      // Refresh only users data
+      await fetchUsers();
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
   };
 
-  const columns = [
+  // Memoized table columns
+  const columns = useMemo(() => [
     {
       title: 'S.No',
       dataIndex: 'sno',
@@ -230,7 +254,6 @@ const UsersManager = () => {
         return roleA.localeCompare(roleB);
       },
       filters: [
-        // Generate filters dynamically based on unique roles in your data
         ...Array.from(new Set(users.flatMap(u => 
           Array.isArray(u.role) ? u.role : [u.role || '']
         ))).filter(Boolean).map(role => ({
@@ -277,7 +300,20 @@ const UsersManager = () => {
         </Space>
       ),
     },
-  ];
+  ], [organizations, users, canUpdate, canDelete, form]);
+
+  // Memoized modal handlers
+  const handleModalOpen = useCallback(() => {
+    setEditingId(null);
+    form.resetFields();
+    setIsModalOpen(true);
+  }, [form]);
+
+  const handleModalClose = useCallback(() => {
+    setIsModalOpen(false);
+    form.resetFields();
+    setEditingId(null);
+  }, [form]);
 
   return (
     <ConfigProvider
@@ -296,11 +332,7 @@ const UsersManager = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingId(null);
-              form.resetFields();
-              setIsModalOpen(true);
-            }}
+            onClick={handleModalOpen}
             style={{ marginBottom: '16px' }}
           >
             Add User
@@ -312,17 +344,19 @@ const UsersManager = () => {
           dataSource={users}
           loading={loading}
           rowKey="id"
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => 
+              `${range[0]}-${range[1]} of ${total} items`,
+          }}
         />
 
         {(canCreate || canUpdate) && (
           <Modal
             title={editingId ? 'Edit User' : 'Create User'}
             open={isModalOpen}
-            onCancel={() => {
-              setIsModalOpen(false);
-              form.resetFields();
-              setEditingId(null);
-            }}
+            onCancel={handleModalClose}
             footer={null}
             destroyOnClose
             centered
@@ -392,12 +426,7 @@ const UsersManager = () => {
 
               <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
                 <Space>
-                  <Button
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      form.resetFields();
-                    }}
-                  >
+                  <Button onClick={handleModalClose}>
                     Cancel
                   </Button>
                   <Button
@@ -416,6 +445,6 @@ const UsersManager = () => {
       </div>
     </ConfigProvider>
   );
-};
-
+  };
+  
 export default UsersManager;

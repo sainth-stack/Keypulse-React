@@ -71,8 +71,8 @@ function Navbar() {
           </div>
           <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingRight:'30px',paddingLeft:'10px'}} id="navbarNav">
           <img
-            src={  Logo2}
-            style={{ width: '75px',height:'75px' }}
+            src={logo}
+            style={{ width: '140px',height:'50px' }}
             id="logo_RL"
           />
         </div>
