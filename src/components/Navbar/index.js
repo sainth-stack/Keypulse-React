@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from '../../assets/images/logo3.png'
 import Logo2 from '../../assets/images/ai-priori.png'
+import kalmar from '../../assets/images/kalmar.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
 import { useLocation } from "react-router-dom";
 function Navbar() {
@@ -32,7 +33,7 @@ function Navbar() {
     }
   }, [location.pathname])
   const image=localStorage.getItem('logo')
-  const logo= image ? `data:image/png;base64,${image}` : null
+  const logo= image ? `data:image/png;base64,${image}` : kalmar
 
   return (
     <>
