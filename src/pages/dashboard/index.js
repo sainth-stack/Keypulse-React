@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { API_URL } from "../../const";
 import Plot from "react-plotly.js";
-import { Card, CardContent, Typography, Grid } from "@mui/material";
+import { Typography, Grid, Paper } from "@mui/material";
 import { LoadingIndicator } from "../../components/loader";
 import './index.css'
 
@@ -56,28 +56,61 @@ const Dashboard = () => {
     : [];
 
   return (
-    <>
+    <div className="dashboard-container">
       {loading && <LoadingIndicator message="Loading dashboard data..." />}
-      <Grid container spacing={3} padding={3}>
+      <Grid container spacing={3} padding={3} className="dashboard-grid">
         {parsedData.map(({ title, graphData }, index) => (
-          <Grid item xs={12} md={6} key={index}>
-            <Card elevation={3} sx={{ borderRadius: 3, padding: 2, boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)" }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{fontWeight:600}}>
-                  {title}
-                </Typography>
+          <Grid item xs={12} md={6} key={index} className="dashboard-grid-item">
+            <Paper 
+              elevation={2} 
+              className="dashboard-paper"
+            >
+              <Typography variant="h6" className="dashboard-title">
+                {title}
+              </Typography>
+              <div className="plotly-graph-container">
                 <Plot
                   data={graphData?.data}
-                  layout={{ ...graphData?.layout, title: "", autosize: true }}
-                  config={{ responsive: true, useResizeHandler: true }}
-                  style={{ width: "100%", height: "50vh",boxShadow:'none' }}
+                  layout={{ 
+                    ...graphData?.layout, 
+                    title: "", 
+                    autosize: true,
+                    margin: { l: 60, r: 40, t: 40, b: 100 },
+                    showlegend: graphData?.layout?.showlegend !== false,
+                    xaxis: {
+                      ...graphData?.layout?.xaxis,
+                      tickangle: -45,
+                      tickfont: { size: 12 },
+                      title: {
+                        ...graphData?.layout?.xaxis?.title,
+                        standoff: 20
+                      }
+                    },
+                    yaxis: {
+                      ...graphData?.layout?.yaxis,
+                      tickfont: { size: 12 },
+                      title: {
+                        ...graphData?.layout?.yaxis?.title,
+                        standoff: 20
+                      }
+                    }
+                  }}
+                  config={{ 
+                    responsive: true, 
+                    useResizeHandler: true,
+                    displayModeBar: true,
+                    displaylogo: false,
+                    modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d']
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  useResizeHandler={true}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </Paper>
           </Grid>
         ))}
       </Grid>
-    </>
+    </div>
   );
 };
 

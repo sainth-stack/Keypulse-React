@@ -86,11 +86,22 @@ const DataAnalysis = () => {
   );
 
   const renderTable = () => {
-    if (!analysisData?.data || analysisData?.data == 'No data') return <p>No data available</p>;
+    if (!apiData?.data || apiData?.data == 'No data') return <p>No data available</p>;
     
-    const parsedData = JSON.parse(analysisData?.data);
+    const parsedData = JSON.parse(apiData.data);
     const headers = Object.keys(parsedData);
     const rowCount = Object.values(parsedData)[0] ? Object.keys(Object.values(parsedData)[0]).length : 0;
+    
+    // Helper function to format date values
+    const formatValue = (value, header) => {
+      if (header === 'Date' && typeof value === 'number') {
+        return new Date(value).toLocaleDateString();
+      }
+      return value;
+    };
+    
+    // Limit rows to first 100 for better performance
+    const maxRows = Math.min(rowCount, 100);
     
     return (
       <div className="table-container">
@@ -103,15 +114,22 @@ const DataAnalysis = () => {
             </tr>
           </thead>
           <tbody>
-            {[...Array(rowCount)].map((_, rowIndex) => (
+            {[...Array(maxRows)].map((_, rowIndex) => (
               <tr key={rowIndex}>
                 {headers.map((header, colIndex) => (
-                  <td key={colIndex}>{parsedData[header][rowIndex]}</td>
+                  <td key={colIndex}>
+                    {formatValue(parsedData[header][rowIndex], header)}
+                  </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
+        {rowCount > 100 && (
+          <div className="table-info">
+            <p>Showing first 100 rows out of {rowCount} total rows</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -193,20 +211,29 @@ const DataAnalysis = () => {
   };
 
   const renderCategoricalAnalysis = () => {
-    if (!analysisData?.data || analysisData?.data == 'No data') return <p>No data available</p>;
+    if (!apiData || !apiData['data description']) return <p>No data available</p>;
     
-    const parsedData = JSON.parse(analysisData.data);
-    const dataTypes = Object.entries(parsedData).map(([column, values]) => {
-      const sampleValue = values[0];
-      let type = typeof sampleValue;
-      if (type === 'number') {
-        type = Number.isInteger(sampleValue) ? 'Integer' : 'Float';
-      } else if (type === 'string') {
-        const isDate = !isNaN(Date.parse(sampleValue));
-        type = isDate ? 'Date' : 'String';
-      }
-      return { column, type };
-    });
+    const dataDescription = apiData['data description'];
+    
+    // Convert technical data types to user-friendly ones
+    const getUserFriendlyType = (technicalType) => {
+      const typeMap = {
+        'datetime64[ns]': 'Date/Time',
+        'int64': 'Integer',
+        'int32': 'Integer',
+        'float64': 'Number',
+        'float32': 'Number',
+        'object': 'Text',
+        'bool': 'Boolean',
+        'category': 'Category'
+      };
+      return typeMap[technicalType] || technicalType;
+    };
+
+    const dataTypes = Object.entries(dataDescription).map(([column, type]) => ({
+      column,
+      type: getUserFriendlyType(type)
+    }));
 
     return (
       <div className="table-container">

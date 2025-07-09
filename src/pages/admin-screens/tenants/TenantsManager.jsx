@@ -53,6 +53,7 @@ const TenantsManager = () => {
       const formData = new FormData();
       formData.append('tenant_name', values.tenant_name);
       formData.append('tenant_type', values.tenant_type);
+      formData.append('timeout', values.timeout);
 
       if (editingId) {
         await axios.post(`${API_URL}/tenants/${editingId}`, formData, {
@@ -128,7 +129,8 @@ const TenantsManager = () => {
                 setEditingId(record.id);
                 form.setFieldsValue({
                   tenant_name: record.name,
-                  tenant_type: record.type
+                  tenant_type: record.type,
+                  timeout: record.timeout
                 });
                 setIsModalOpen(true);
               }}
@@ -221,6 +223,17 @@ const TenantsManager = () => {
                   <Select.Option value="oem">OEM</Select.Option>
                   <Select.Option value="customer">Customer</Select.Option>
                 </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="timeout"
+                label="Timeout"
+              >
+                <Input 
+                  type="number" 
+                  placeholder="Enter timeout value (e.g., 5.0)"
+                  step="0.1"
+                />
               </Form.Item>
 
               <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>

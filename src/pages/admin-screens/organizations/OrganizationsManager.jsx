@@ -42,7 +42,7 @@ const OrganizationsManager = () => {
         tenant: data.filter((item) => item?.id === org?.tenant)?.[0]?.name,
         key: org.id,
         sno: index + 1,
-        logo: org.logo_data ? `data:image/png;base64,${org.logo_data}` : null
+        logo: org.logo_data ? `${org.logo_data}` : null
       }));
       setOrganizations(dataWithIndex);
     } catch (error) {

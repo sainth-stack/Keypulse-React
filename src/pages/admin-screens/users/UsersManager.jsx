@@ -18,17 +18,12 @@ import { API_URL } from '../../../const';
 
 const UsersManager = () => {
   const [users, setUsers] = useState([]);
-  const [organizations, setOrganizations] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [tenants, setTenants] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
-
-  // Ref to track if initial load is done
-  const initialLoadRef = useRef(false);
 
   // Get permissions for UI rendering (memoized to prevent unnecessary re-renders) 
   const permissions = useMemo(() => {
@@ -46,19 +41,16 @@ const UsersManager = () => {
     canDelete: permissions.includes("users_Delete"),
   }), [permissions]);
 
-  // Fetch only users data (for refresh after operations)
+  // Fetch users data
   const fetchUsers = useCallback(async () => {
     try {
-      // Get current values directly from localStorage
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentIsSuper = isSuperAdmin();
-      
       const response = await axios.get(`${API_URL}/users`, {
         params: {
           organization_id: !currentIsSuper ? currentUser?.organization : ''
         }
       });
-      
       const usersData = (currentIsSuper ? response?.data : response?.data?.users) || [];
       const processedUsers = usersData.map((user, index) => ({
         ...user,
@@ -71,87 +63,40 @@ const UsersManager = () => {
     }
   }, []);
 
+  // Fetch roles data
+  const fetchRoles = useCallback(async () => {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentIsSuper = isSuperAdmin();
+      const response = await axios.get(`${API_URL}/roles`, {
+        params: {
+          o_id: !currentIsSuper ? currentUser?.organization : ''
+        }
+      });
+      const rolesData = response?.data?.roles || [];
+      const processedRoles = rolesData.map((role, index) => ({
+        ...role,
+        key: role.id,
+        sno: index + 1,
+      }));
+      setRoles(processedRoles);
+    } catch (error) {
+      message.error('Failed to load roles data');
+    }
+  }, []);
+
   // Initial data load effect - runs only once
   useEffect(() => {
-    if (!initialLoadRef.current) {
-      initialLoadRef.current = true;
-      
-      const loadData = async () => {
-        setLoading(true);
-        
-        try {
-          // Get current values directly from localStorage
-          const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-          const currentIsSuper = isSuperAdmin();
-
-          // Execute all API calls in parallel
-          const [usersResponse, orgResponse, tenantsResponse, rolesResponse] = await Promise.all([
-            axios.get(`${API_URL}/users`, {
-              params: {
-                organization_id: !currentIsSuper ? currentUser?.organization : ''
-              }
-            }),
-            axios.get(`${API_URL}/organizations`, {
-              params: {
-                tenant_id: !currentIsSuper ? currentUser?.tenant : ''
-              }
-            }),
-            axios.get(`${API_URL}/tenants`),
-            axios.get(`${API_URL}/roles`, {
-              params: {
-                o_id: !currentIsSuper ? currentUser?.organization : ''
-              }
-            })
-          ]);
-
-          // Process users data
-          const usersData = (currentIsSuper ? usersResponse?.data : usersResponse?.data?.users) || [];
-          const processedUsers = usersData.map((user, index) => ({
-            ...user,
-            key: user.id,
-            sno: index + 1,
-          }));
-          setUsers(processedUsers);
-
-          // Process tenants data
-          const tenantsData = tenantsResponse?.data?.tenants || [];
-          const processedTenants = tenantsData.map((tenant, index) => ({
-            ...tenant,
-            key: tenant.id,
-            sno: index + 1,
-          }));
-          setTenants(processedTenants);
-
-          // Process organizations data
-          const orgsData = orgResponse?.data?.organizations || [];
-          const processedOrgs = orgsData.map((org, index) => ({
-            ...org,
-            tenant: tenantsData.find((item) => item?.id === org?.tenant)?.name || '',
-            key: org.id,
-            sno: index + 1,
-          }));
-          setOrganizations(processedOrgs);
-
-          // Process roles data
-          const rolesData = rolesResponse?.data?.roles || [];
-          const processedRoles = rolesData.map((role, index) => ({
-            ...role,
-            key: role.id,
-            sno: index + 1,
-          }));
-          setRoles(processedRoles);
-
-        } catch (error) {
-          console.error('Failed to fetch data:', error);
-          message.error('Failed to load data. Please try again.');
-        } finally {
-          setLoading(false);
-        }
-      };
-      
-      loadData();
-    }
-  }, []); // Empty dependency array - this effect runs only once
+    setLoading(true);
+    Promise.all([
+      fetchUsers(),
+      fetchRoles()
+    ])
+      .catch(() => {
+        message.error('Failed to load data. Please try again.');
+      })
+      .finally(() => setLoading(false));
+  }, [fetchUsers, fetchRoles]);
 
   // Handle form submission
   const handleSubmit = async (values) => {
@@ -231,14 +176,26 @@ const UsersManager = () => {
       title: 'Organization',
       dataIndex: 'organization',
       key: 'organization',
-      render: (orgId) => {
-        const org = organizations.find((o) => o.id === orgId);
-        return org ? org.name : '-';
+      render: (org) => {
+        return org?.organization_name || '-';
       },
       sorter: (a, b) => {
-        const orgA = organizations.find(o => o.id === a.organization)?.name || '';
-        const orgB = organizations.find(o => o.id === b.organization)?.name || '';
+        const orgA = a.organization?.organization_name || '';
+        const orgB = b.organization?.organization_name || '';
         return orgA.localeCompare(orgB);
+      },
+    },
+    {
+      title: 'Tenant',
+      dataIndex: 'tenant',
+      key: 'tenant',
+      render: (tenant) => {
+        return tenant?.tenant_name || '-';
+      },
+      sorter: (a, b) => {
+        const tenantA = a.tenant?.tenant_name || '';
+        const tenantB = b.tenant?.tenant_name || '';
+        return tenantA.localeCompare(tenantB);
       },
     },
     {
@@ -280,7 +237,7 @@ const UsersManager = () => {
                 form.setFieldsValue({
                   username: record.username,
                   email: record.email,
-                  organization: record.organization,
+                  organization: record.organization?.organization_id,
                   roles: Array.isArray(record.role) ? record.role : record.role ? [record.role] : [],
                 });
                 setIsModalOpen(true);
@@ -300,7 +257,7 @@ const UsersManager = () => {
         </Space>
       ),
     },
-  ], [organizations, users, canUpdate, canDelete, form]);
+  ], [users, canUpdate, canDelete, form]);
 
   // Memoized modal handlers
   const handleModalOpen = useCallback(() => {
@@ -402,11 +359,14 @@ const UsersManager = () => {
                 rules={[{ required: true, message: 'Please select an organization!' }]}
               >
                 <Select placeholder="Select organization">
-                  {organizations.map((org) => (
-                    <Select.Option key={org.id} value={org.id}>
-                      {org.name}
-                    </Select.Option>
-                  ))}
+                  {Array.from(new Set(users.map(user => user.organization?.organization_id).filter(Boolean))).map((orgId) => {
+                    const user = users.find(u => u.organization?.organization_id === orgId);
+                    return (
+                      <Select.Option key={orgId} value={orgId}>
+                        {user?.organization?.organization_name}
+                      </Select.Option>
+                    );
+                  })}
                 </Select>
               </Form.Item>
 

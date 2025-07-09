@@ -15,6 +15,7 @@ function Navbar() {
     localStorage.removeItem("token")
     localStorage.removeItem("userName")
     localStorage.removeItem("permissions")
+    localStorage.removeItem("sessionExpiryTime")
     localStorage.clear();
     navigate('/login')
   }
@@ -33,8 +34,8 @@ function Navbar() {
     }
   }, [location.pathname])
   const image=localStorage.getItem('logo')
-  const logo= image ? `data:image/png;base64,${image}` : kalmar
-
+  // const logo= image ? `data:image/png;base64,${image}` : kalmar
+const logo= kalmar
   return (
     <>
       <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm sticky-top bg-white-fixed" style={{zIndex:500}}>

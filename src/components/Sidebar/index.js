@@ -37,6 +37,12 @@ export default function Sidebar({ }) {
       icon: <BiAnalyse size={20} />,
       permission: "data_analysis_Read"
     },
+    // {
+    //   path: "/diagnostic-reports",
+    //   name: "Diagnostic Reports",
+    //   icon: <RiFileWarningLine size={20} />,
+    //   permission: "data_analysis_Read"
+    // },
     {
       path: "/visualizations",
       name: "Visualizations",
@@ -83,7 +89,7 @@ export default function Sidebar({ }) {
   // Redirect if trying to access unauthorized path
   React.useEffect(() => {
     if (!isPathAccessible(location.pathname)) {
-      navigate("/access-denied"); // Or your preferred unauthorized access route
+      // navigate("/access-denied"); // Or your preferred unauthorized access route
     }
   }, [location.pathname, navigate]);
 

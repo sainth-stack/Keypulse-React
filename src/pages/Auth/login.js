@@ -9,6 +9,7 @@ import './styles.css'
 import axios from 'axios'
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../const";
+import sessionManager from "../../utils/sessionManager";
 
 export const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -16,16 +17,6 @@ export const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
-
-  const fetchOrganizations = async (user) => {
-    try {
-      const response2 = await axios.get(`${API_URL}/organizations/${user?.organization}`)
-      localStorage.setItem('logo',response2.data['Organization Details']['logo_data'])
-    } catch (error) {
-    } finally {
-    }
-  };
-
 
   const fetchRoles = async (roles) => {
     setLoading(true);
@@ -73,13 +64,61 @@ export const Login = () => {
       }
     })
     .then((response) => {
-      setLoading(false);
-      fetchRoles(response.data?.user?.role)
-      fetchOrganizations(response.data?.user)
-      localStorage.setItem('user', JSON.stringify(response.data?.user));
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('userName', response.data?.user?.username);
+      console.log('Login Response:', response.data); // Debug: Check what we get from API
       
+      setLoading(false);
+      fetchRoles(response.data?.user?.role);
+      localStorage.setItem('user', JSON.stringify(response.data?.user));
+      localStorage.setItem('token', response.data?.user?.username);
+      localStorage.setItem('userName', response.data?.user?.username);
+      localStorage.setItem('logo',response.data?.user?.organization?.organization_logo)
+      localStorage.setItem('organization',response.data?.user?.organization)
+      
+      // Store tenant information and setup session timeout
+      // Check for tenant data in response
+      const tenantData = {
+        tenant_id: response.data?.tenant_id || 'default-tenant',
+        tenant_name: response.data?.tenant_name || 'Default Tenant',
+        tenant_type: response.data?.tenant_type || 'default',
+        tenant_timeout: response.data?.tenant_timeout || 30 // Default 30 minutes
+      };
+      
+      console.log('Tenant Data:', tenantData); // Debug: Check tenant data
+      localStorage.setItem('tenant', JSON.stringify(tenantData));
+      
+      // Set session timeout based on tenant configuration
+      const timeoutMinutes = tenantData.tenant_timeout;
+      const sessionExpiryTime = Date.now() + (timeoutMinutes * 60 * 1000);
+      localStorage.setItem('sessionExpiryTime', sessionExpiryTime.toString());
+      
+      console.log('Session Expiry Time:', new Date(sessionExpiryTime)); // Debug: Check expiry time
+      
+      // Initialize session monitoring using the session manager
+      try {
+        console.log('Initializing session manager...'); // Debug
+        sessionManager.initializeSessionTimeout();
+        console.log('Session manager initialized successfully!'); // Debug
+      } catch (error) {
+        console.error('Error initializing session manager:', error);
+      }
+      
+      // Call the new API to get the file name, passing user id in header
+      const userId = response.data?.user?.id;
+      if (userId) {
+        axios.get('http://34.244.163.169:4004/api/get_file_name', {
+          headers: {
+            'X-User-ID': userId,
+          }
+        })
+        .then((res) => {
+          if (res.data && res.data.file_name) {
+            localStorage.setItem('fileName', res.data.file_name);
+          }
+        })
+        .catch((err) => {
+          console.error('Error fetching file name:', err);
+        });
+      }
     })
     .catch((err) => {
       setLoading(false);
