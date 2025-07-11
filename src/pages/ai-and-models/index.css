@@ -18,7 +18,7 @@
 }
 
 /* Form styles */
-.modern-form {
+.modern-form2 {
     background: white;
     padding: 2rem;
     border-radius: 16px;
@@ -100,7 +100,7 @@
     margin-bottom: 0.5rem;
 }
 
-.modern-select {
+.modern-select:not(.ant-select) {
     width: 100%;
     padding: 0.875rem 1.25rem;
     border: 1px solid #d1d5db;
@@ -114,10 +114,21 @@
     background-position: right 1rem center;
 }
 
-.modern-select:focus {
+.modern-select:not(.ant-select):focus {
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Ensure antd components maintain their default styling */
+.ant-select,
+.ant-picker {
+    z-index: auto !important;
+}
+
+.ant-select-dropdown,
+.ant-picker-dropdown {
+    z-index: 1050 !important;
 }
 
 .modern-submit {

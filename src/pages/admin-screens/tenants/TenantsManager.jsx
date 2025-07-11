@@ -4,8 +4,6 @@ import {
   Button,
   Modal,
   Form,
-  Input,
-  Select,
   Space,
   message,
   Popconfirm,
@@ -14,6 +12,7 @@ import {
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { API_URL } from '../../../const';
+import './TenantsManager.css';
 
 const TenantsManager = () => {
   const [tenants, setTenants] = useState([]);
@@ -22,9 +21,13 @@ const TenantsManager = () => {
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    tenant_name: '',
+    tenant_type: '',
+    timeout: ''
+  });
 
   const permissions = JSON.parse(localStorage.getItem('permissions') || {});
-
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -47,23 +50,37 @@ const TenantsManager = () => {
     fetchTenants();
   }, []);
 
-  const handleSubmit = async (values) => {
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.tenant_name || !formData.tenant_type) {
+      message.error('Please fill in all required fields');
+      return;
+    }
+
     setSubmitLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('tenant_name', values.tenant_name);
-      formData.append('tenant_type', values.tenant_type);
-      formData.append('timeout', values.timeout);
+      const formDataToSend = new FormData();
+      formDataToSend.append('tenant_name', formData.tenant_name);
+      formDataToSend.append('tenant_type', formData.tenant_type);
+      formDataToSend.append('timeout', formData.timeout);
 
       if (editingId) {
-        await axios.post(`${API_URL}/tenants/${editingId}`, formData, {
+        await axios.post(`${API_URL}/tenants/${editingId}`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
         });
         message.success('Tenant updated successfully');
       } else {
-        await axios.post(`${API_URL}/create_tenants`, formData, {
+        await axios.post(`${API_URL}/create_tenants`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
@@ -72,7 +89,7 @@ const TenantsManager = () => {
       }
       
       setIsModalOpen(false);
-      form.resetFields();
+      setFormData({ tenant_name: '', tenant_type: '', timeout: '' });
       setEditingId(null);
       fetchTenants();
     } catch (error) {
@@ -90,6 +107,28 @@ const TenantsManager = () => {
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
+  };
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setFormData({ tenant_name: '', tenant_type: '', timeout: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (record) => {
+    setEditingId(record.id);
+    setFormData({
+      tenant_name: record.name,
+      tenant_type: record.type,
+      timeout: record.timeout || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setFormData({ tenant_name: '', tenant_type: '', timeout: '' });
+    setEditingId(null);
   };
 
   // Check specific permissions
@@ -125,15 +164,7 @@ const TenantsManager = () => {
             <Button
               type="text"
               icon={<EditOutlined />}
-              onClick={() => {
-                setEditingId(record.id);
-                form.setFieldsValue({
-                  tenant_name: record.name,
-                  tenant_type: record.type,
-                  timeout: record.timeout
-                });
-                setIsModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             />
           )}
           {canDelete && (
@@ -168,11 +199,7 @@ const TenantsManager = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingId(null);
-              form.resetFields();
-              setIsModalOpen(true);
-            }}
+            onClick={openCreateModal}
             style={{ marginBottom: '16px' }}
           >
             Add Tenant
@@ -184,17 +211,17 @@ const TenantsManager = () => {
           dataSource={tenants}
           loading={loading}
           rowKey="id"
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+          }}
         />
 
         {(canCreate || canUpdate) && (
           <Modal
             title={editingId ? 'Edit Tenant' : 'Create Tenant'}
             open={isModalOpen}
-            onCancel={() => {
-              setIsModalOpen(false);
-              form.resetFields();
-              setEditingId(null);
-            }}
+            onCancel={closeModal}
             footer={null}
             destroyOnClose
             centered
@@ -204,57 +231,73 @@ const TenantsManager = () => {
             style={{ top: 20, zIndex: 99999 }}
             bodyStyle={{ padding: '24px' }}
           >
-            <Form form={form} onFinish={handleSubmit} layout="vertical">
-              <Form.Item
-                name="tenant_name"
-                label="Tenant Name"
-                rules={[{ required: true, message: 'Please input tenant name!' }]}
-              >
-                <Input placeholder="Enter tenant name" />
-              </Form.Item>
+            <div className="modern-form">
+              <form onSubmit={handleSubmit}>
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Tenant Name <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="modern-input"
+                    placeholder="Enter tenant name"
+                    value={formData.tenant_name}
+                    onChange={(e) => handleInputChange('tenant_name', e.target.value)}
+                    required
+                  />
+                </div>
 
-              <Form.Item
-                name="tenant_type"
-                label="Tenant Type"
-                rules={[{ required: true, message: 'Please select tenant type!' }]}
-              >
-                <Select placeholder="Select tenant type">
-                  <Select.Option value="ai-priori">AI-Priori</Select.Option>
-                  <Select.Option value="oem">OEM</Select.Option>
-                  <Select.Option value="customer">Customer</Select.Option>
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="timeout"
-                label="Timeout"
-              >
-                <Input 
-                  type="number" 
-                  placeholder="Enter timeout value (e.g., 5.0)"
-                  step="0.1"
-                />
-              </Form.Item>
-
-              <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
-                <Space>
-                  <Button onClick={() => {
-                    setIsModalOpen(false);
-                    form.resetFields();
-                  }}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit" 
-                    loading={submitLoading}
-                    disabled={submitLoading}
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Tenant Type <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <select
+                    className="modern-select"
+                    value={formData.tenant_type}
+                    onChange={(e) => handleInputChange('tenant_type', e.target.value)}
+                    required
                   >
-                    {editingId ? 'Update' : 'Submit'}
-                  </Button>
-                </Space>
-              </Form.Item>
-            </Form>
+                    <option value="" disabled>Select tenant type</option>
+                    <option value="ai-priori">AI-Priori</option>
+                    <option value="oem">OEM</option>
+                    <option value="customer">Customer</option>
+                  </select>
+                </div>
+
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Timeout
+                  </label>
+                  <input
+                    type="number"
+                    className="modern-input"
+                    placeholder="Enter timeout value (e.g., 5.0)"
+                    step="0.1"
+                    value={formData.timeout}
+                    onChange={(e) => handleInputChange('timeout', e.target.value)}
+                  />
+                </div>
+
+                <div style={{ marginTop: '24px', textAlign: 'right' }}>
+                  <Space>
+                    <button
+                      type="button"
+                      className="modern-cancel-button"
+                      onClick={closeModal}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="modern-submit"
+                      disabled={submitLoading}
+                    >
+                      {submitLoading ? 'Submitting...' : (editingId ? 'Update' : 'Submit')}
+                    </button>
+                  </Space>
+                </div>
+              </form>
+            </div>
           </Modal>
         )}
       </div>

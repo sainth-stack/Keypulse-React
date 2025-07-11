@@ -20,8 +20,6 @@ import UserSessions from "./pages/admin-screens/user-sessions"
 import AccessDenied from "./pages/access-denied";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SessionStatus from "./components/SessionStatus";
-import SessionTestPage from "./components/SessionTestPage";
-import SimpleSessionDemo from "./components/SimpleSessionDemo";
 
 function App() {
   return (
@@ -42,8 +40,6 @@ function App() {
           <Route path="/missing-value" element={<MissingValues />} />
           <Route path="/ai-models" element={<AiAndModels />} />
           <Route path="/kpi" element={<Kpi />} />
-          <Route path="/session-test" element={<SessionTestPage />} />
-          <Route path="/session-demo" element={<SimpleSessionDemo />} />
         </Route>
         
         {/* Admin screens also protected */}

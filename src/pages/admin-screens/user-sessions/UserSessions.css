@@ -1,0 +1,244 @@
+@import '../shared/AdminFormStyles.css';
+
+/* User Sessions specific styles */
+.user-sessions-container {
+    padding: 24px;
+}
+
+.filter-section {
+    margin-bottom: 16px;
+    padding: 16px;
+    background: #fafafa;
+    border-radius: 8px;
+}
+
+.session-status-active {
+    color: #52c41a;
+    font-weight: 600;
+}
+
+.session-status-completed {
+    color: #1890ff;
+    font-weight: 600;
+}
+
+.session-status-expired {
+    color: #ff4d4f;
+    font-weight: 600;
+}
+
+.session-status-terminated {
+    color: #f5222d;
+    font-weight: 600;
+}
+
+.session-duration {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+}
+
+.session-user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.session-user-email {
+    font-size: 12px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.session-time-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.session-time-label {
+    font-size: 12px;
+    color: #666;
+}
+
+.session-modal {
+    z-index: 1000;
+}
+
+.session-modal-loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.session-modal-loading-text {
+    margin-top: 16px;
+    color: #666;
+}
+
+.session-table-container {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.session-expandable-row {
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+.session-add-button {
+    margin-bottom: 16px;
+}
+
+.session-search-button {
+    width: 100%;
+}
+
+.session-reset-button {
+    width: 100%;
+}
+
+.session-filter-col {
+    display: flex;
+    align-items: center;
+}
+
+.session-actions-space {
+    gap: 8px;
+}
+
+.session-table-scroll {
+    overflow-x: auto;
+}
+
+.session-pagination {
+    margin-top: 16px;
+    text-align: right;
+}
+
+.session-modal-form {
+    padding: 0;
+}
+
+.session-modal-form-item {
+    margin-bottom: 20px;
+}
+
+.session-modal-footer {
+    margin-top: 24px;
+    text-align: right;
+}
+
+.session-modal-footer .ant-space {
+    gap: 12px;
+}
+
+.session-device-info-input {
+    width: 100%;
+}
+
+.session-datetime-picker {
+    width: 100%;
+}
+
+.session-status-select {
+    width: 100%;
+}
+
+.session-filter-select {
+    width: 100%;
+}
+
+.session-filter-range-picker {
+    width: 100%;
+}
+
+/* Ensure antd components work correctly in this context */
+.user-sessions-container .ant-select-dropdown,
+.user-sessions-container .ant-picker-dropdown {
+    z-index: 1050 !important;
+}
+
+.user-sessions-container .ant-select,
+.user-sessions-container .ant-picker {
+    width: 100%;
+}
+
+.user-sessions-container .ant-select-selector,
+.user-sessions-container .ant-picker {
+    border-radius: 6px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .user-sessions-container {
+        padding: 16px;
+    }
+    
+    .filter-section {
+        padding: 12px;
+    }
+    
+    .session-modal-loading {
+        padding: 20px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .filter-section {
+        background: #1f1f1f;
+    }
+    
+    .session-expandable-row {
+        background: #2a2a2a;
+        border-top: 1px solid #3a3a3a;
+    }
+    
+    .session-table-container {
+        background: #1a1a1a;
+    }
+    
+    .session-user-email {
+        color: #bbb;
+    }
+    
+    .session-duration {
+        color: #bbb;
+    }
+    
+    .session-modal-loading-text {
+        color: #bbb;
+    }
+}
+
+/* Custom scrollbar for table */
+.session-table-scroll::-webkit-scrollbar {
+    height: 8px;
+}
+
+.session-table-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.session-table-scroll::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.session-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Loading state styles */
+.session-loading-overlay {
+    position: relative;
+}
+
+.session-loading-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+} 

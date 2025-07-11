@@ -3,9 +3,6 @@ import {
   Table,
   Button,
   Modal,
-  Form,
-  Input,
-  Select,
   Space,
   message,
   Popconfirm,
@@ -16,16 +13,22 @@ import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { API_URL } from '../../../const';
 import { isSuperAdmin } from '../../../utils';
+import './OrganizationsManager.css';
 
 const OrganizationsManager = () => {
   const [organizations, setOrganizations] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form] = Form.useForm();
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [file, setFile] = useState(null);
+  const [formData, setFormData] = useState({
+    tenant_id: '',
+    organization_name: '',
+    parent_organization_id: ''
+  });
+
   const user = JSON.parse(localStorage.getItem('user') || "{}");
   const permissions = JSON.parse(localStorage.getItem('permissions') || '[]') || [];
 
@@ -34,12 +37,12 @@ const OrganizationsManager = () => {
     try {
       const response = await axios.get(`${API_URL}/organizations`, {
         params: {
-          tenant_id: !isSuperAdmin() ? user?.tenant : ''
+          tenant_id: !isSuperAdmin() ? user?.tenant?.tenant_id : ''
         }
       });
       const dataWithIndex = response?.data?.organizations?.map((org, index) => ({
         ...org,
-        tenant: data.filter((item) => item?.id === org?.tenant)?.[0]?.name,
+        tenant: org?.tenant['Tenant Name'],
         key: org.id,
         sno: index + 1,
         logo: org.logo_data ? `${org.logo_data}` : null
@@ -56,49 +59,62 @@ const OrganizationsManager = () => {
     try {
       const response = await axios.get(`${API_URL}/tenants`);
       setTenants(response?.data?.tenants || []);
-      fetchOrganizations(response?.data?.tenants || []);
     } catch (error) {
       message.error('Failed to fetch tenants');
     }
   };
 
   useEffect(() => {
-    fetchTenants();
+    fetchOrganizations();
   }, []);
 
-  const handleSubmit = async (values) => {
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.tenant_id || !formData.organization_name) {
+      message.error('Please fill in all required fields');
+      return;
+    }
+
     setSubmitLoading(true);
     try {
-      const formData = new FormData();
-      console.log(values,'values')
+      const formDataToSend = new FormData();
+      console.log(formData,'formData')
       if (editingId) {
-        formData.append('tenant', values.tenant_id);
-        formData.append('name', values.organization_name);
-        if (values.parent_organization_id) {
-          formData.append('parent', values.parent_organization_id);
+        formDataToSend.append('tenant', formData.tenant_id);
+        formDataToSend.append('name', formData.organization_name);
+        if (formData.parent_organization_id) {
+          formDataToSend.append('parent', formData.parent_organization_id);
         } else {
-          formData.append('parent', '');
+          formDataToSend.append('parent', '');
         }
       } else {
-        formData.append('tenant_id', values.tenant_id);
-        formData.append('organization_name', values.organization_name);
-        formData.append('logo', file);
-        if (values.parent_organization_id) {
-          formData.append('parent_organization_id', values.parent_organization_id);
+        formDataToSend.append('tenant_id', formData.tenant_id);
+        formDataToSend.append('organization_name', formData.organization_name);
+        formDataToSend.append('logo', file);
+        if (formData.parent_organization_id) {
+          formDataToSend.append('parent_organization_id', formData.parent_organization_id);
         }
       }
       
 
       if (editingId) {
-        formData.append('file', file);
-        await axios.post(`${API_URL}/organizations/${editingId}`, formData, {
+        formDataToSend.append('file', file);
+        await axios.post(`${API_URL}/organizations/${editingId}`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
         });
         message.success('Organization updated successfully');
       } else {
-        await axios.post(`${API_URL}/create_organizations`, formData, {
+        await axios.post(`${API_URL}/create_organizations`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
@@ -107,7 +123,7 @@ const OrganizationsManager = () => {
       }
       
       setIsModalOpen(false);
-      form.resetFields();
+      setFormData({ tenant_id: '', organization_name: '', parent_organization_id: '' });
       setEditingId(null);
       setFile(null);
       fetchOrganizations(tenants);
@@ -126,6 +142,33 @@ const OrganizationsManager = () => {
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
+  };
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setFormData({ tenant_id: '', organization_name: '', parent_organization_id: '' });
+    setFile(null);
+    fetchTenants();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (record) => {
+    setEditingId(record.id);
+    setFormData({
+      tenant_id: record.tenant,
+      organization_name: record.name,
+      parent_organization_id: record.parent_organization_id || ''
+    });
+    setFile(null);
+    fetchTenants();
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setFormData({ tenant_id: '', organization_name: '', parent_organization_id: '' });
+    setEditingId(null);
+    setFile(null);
   };
 
   const canCreate = permissions.includes("organization_Create");
@@ -181,15 +224,7 @@ const OrganizationsManager = () => {
             <Button
               type="text"
               icon={<EditOutlined />}
-              onClick={() => {
-                setEditingId(record.id);
-                form.setFieldsValue({
-                  tenant_id: record.tenant,
-                  organization_name: record.name,
-                  parent_organization_id: record.parent_organization_id
-                });
-                setIsModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             />
           )}
           {canDelete && (
@@ -224,11 +259,7 @@ const OrganizationsManager = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingId(null);
-              form.resetFields();
-              setIsModalOpen(true);
-            }}
+            onClick={openCreateModal}
             style={{ marginBottom: '16px' }}
           >
             Add Organization
@@ -240,18 +271,17 @@ const OrganizationsManager = () => {
           dataSource={organizations}
           loading={loading}
           rowKey="id"
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+          }}
         />
 
         {(canCreate || canUpdate) && (
           <Modal
             title={editingId ? 'Edit Organization' : 'Create Organization'}
             open={isModalOpen}
-            onCancel={() => {
-              setIsModalOpen(false);
-              form.resetFields();
-              setEditingId(null);
-              setFile(null);
-            }}
+            onCancel={closeModal}
             footer={null}
             destroyOnClose
             centered
@@ -261,73 +291,101 @@ const OrganizationsManager = () => {
             style={{ top: 20, zIndex: 99999 }}
             bodyStyle={{ padding: '24px' }}
           >
-            <Form form={form} onFinish={handleSubmit} layout="vertical">
-              <Form.Item
-                name="tenant_id"
-                label="Tenant"
-                rules={[{ required: true, message: 'Please select tenant!' }]}
-              >
-                <Select placeholder="Select tenant">
-                  {tenants.map(tenant => (
-                    <Select.Option key={tenant.id} value={tenant.id}>
-                      {tenant.name}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="organization_name"
-                label="Organization Name"
-                rules={[{ required: true, message: 'Please input organization name!' }]}
-              >
-                <Input placeholder="Enter organization name" />
-              </Form.Item>
-
-              <Form.Item
-                name="parent_organization_id"
-                label="Parent Organization (Optional)"
-              >
-                <Select placeholder="Select parent organization">
-                  <Select.Option value="">None</Select.Option>
-                  {organizations
-                    .filter(org => !editingId || org.id !== editingId)
-                    .map(org => (
-                      <Select.Option key={org.id} value={org.id}>
-                        {org.name}
-                      </Select.Option>
-                    ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item label="Logo">
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={(e) => setFile(e.target.files[0])}
-                />
-              </Form.Item>
-
-              <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
-                <Space>
-                  <Button onClick={() => {
-                    setIsModalOpen(false);
-                    form.resetFields();
-                    setFile(null);
-                  }}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit" 
-                    loading={submitLoading}
-                    disabled={submitLoading}
+            <div className="modern-form">
+              <form onSubmit={handleSubmit}>
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Tenant <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <select
+                    className="modern-select"
+                    value={formData.tenant_id}
+                    onChange={(e) => handleInputChange('tenant_id', e.target.value)}
+                    required
                   >
-                    {editingId ? 'Update' : 'Submit'}
-                  </Button>
-                </Space>
-              </Form.Item>
-            </Form>
+                    <option value="" disabled>Select tenant</option>
+                    {tenants.map(tenant => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Organization Name <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="modern-input"
+                    placeholder="Enter organization name"
+                    value={formData.organization_name}
+                    onChange={(e) => handleInputChange('organization_name', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Parent Organization (Optional)
+                  </label>
+                  <select
+                    className="modern-select"
+                    value={formData.parent_organization_id}
+                    onChange={(e) => handleInputChange('parent_organization_id', e.target.value)}
+                  >
+                    <option value="">None</option>
+                    {organizations
+                      .filter(org => !editingId || org.id !== editingId)
+                      .map(org => (
+                        <option key={org.id} value={org.id}>
+                          {org.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="form-group2">
+                  <label className="modern-label">
+                    Logo
+                  </label>
+                  <div className={`modern-file-input-wrapper ${file ? 'has-file' : ''}`}>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      className="modern-file-input"
+                      onChange={(e) => setFile(e.target.files[0])}
+                    />
+                    <div className="modern-file-input-display">
+                      <span className="modern-file-input-button">Choose File</span>
+                      <span className="modern-file-input-text">
+                        {file ? file.name : 'No file chosen'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '24px', textAlign: 'right' }}>
+                  <Space>
+                    <button
+                      type="button"
+                      className="modern-cancel-button"
+                      onClick={closeModal}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="modern-submit"
+                      disabled={submitLoading}
+                    >
+                      {submitLoading ? 'Submitting...' : (editingId ? 'Update' : 'Submit')}
+                    </button>
+                  </Space>
+                </div>
+              </form>
+            </div>
           </Modal>
         )}
       </div>

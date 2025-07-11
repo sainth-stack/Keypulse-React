@@ -324,7 +324,7 @@ const AiAndModels = () => {
         <div className="modern-container">
             <h1 className="modern-title">AI and Models Analysis</h1>
             
-            <form onSubmit={handleSubmit} className="modern-form">
+            <form onSubmit={handleSubmit} className="modern-form2">
                 <div className="tab-panel">
                     <div className="tabs">
                         {models.map((model) => (

@@ -3,27 +3,34 @@ import {
   Table,
   Button,
   Modal,
-  Form,
-  Input,
   Space,
   message,
   Popconfirm,
   ConfigProvider,
-  Select,
+  Spin,
 } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { isSuperAdmin } from '../../../utils';
 import { API_URL } from '../../../const';
+import './UsersManager.css';
 
 const UsersManager = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form] = Form.useForm();
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    organization: '',
+    roles: ''
+  });
 
   // Get permissions for UI rendering (memoized to prevent unnecessary re-renders) 
   const permissions = useMemo(() => {
@@ -48,7 +55,7 @@ const UsersManager = () => {
       const currentIsSuper = isSuperAdmin();
       const response = await axios.get(`${API_URL}/users`, {
         params: {
-          organization_id: !currentIsSuper ? currentUser?.organization : ''
+          organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
         }
       });
       const usersData = (currentIsSuper ? response?.data : response?.data?.users) || [];
@@ -70,7 +77,7 @@ const UsersManager = () => {
       const currentIsSuper = isSuperAdmin();
       const response = await axios.get(`${API_URL}/roles`, {
         params: {
-          o_id: !currentIsSuper ? currentUser?.organization : ''
+          o_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
         }
       });
       const rolesData = response?.data?.roles || [];
@@ -85,39 +92,72 @@ const UsersManager = () => {
     }
   }, []);
 
-  // Initial data load effect - runs only once
+  // Fetch organizations data
+  const fetchOrganizations = useCallback(async () => {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentIsSuper = isSuperAdmin();
+      const response = await axios.get(`${API_URL}/organizations`, {
+        params: {
+          tenant_id: !currentIsSuper ? currentUser?.tenant?.tenant_id : ''
+        }
+      });
+      const organizationsData = response?.data?.organizations || [];
+      setOrganizations(organizationsData);
+    } catch (error) {
+      message.error('Failed to load organizations data');
+    }
+  }, []);
+
+  // Initial data load effect - only load users on component mount
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      fetchUsers(),
-      fetchRoles()
-    ])
+    fetchUsers()
       .catch(() => {
-        message.error('Failed to load data. Please try again.');
+        message.error('Failed to load users data. Please try again.');
       })
       .finally(() => setLoading(false));
-  }, [fetchUsers, fetchRoles]);
+  }, [fetchUsers]);
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
   // Handle form submission
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.username || !formData.email || !formData.organization || !formData.roles) {
+      message.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!editingId && !formData.password) {
+      message.error('Please enter a password');
+      return;
+    }
+
     setSubmitLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('username', values.username);
-      formData.append('email', values.email);
-      formData.append('organization', values.organization);
-      formData.append('roles', values.roles.join(','));
+      const formDataToSend = new FormData();
+      formDataToSend.append('username', formData.username);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('organization', formData.organization);
+      formDataToSend.append('roles', formData.roles);
 
       if (editingId) {
-        await axios.post(`${API_URL}/users/${editingId}`, formData, {
+        await axios.post(`${API_URL}/users/${editingId}`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
         message.success('User updated successfully');
       } else {
-        formData.append('password', values.password);
-        await axios.post(`${API_URL}/create_user`, formData, {
+        formDataToSend.append('password', formData.password);
+        await axios.post(`${API_URL}/create_user`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -126,7 +166,7 @@ const UsersManager = () => {
       }
 
       setIsModalOpen(false);
-      form.resetFields();
+      setFormData({ username: '', email: '', password: '', organization: '', roles: '' });
       setEditingId(null);
       
       // Refresh only users data
@@ -149,6 +189,49 @@ const UsersManager = () => {
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
+  };
+
+  // Load modal data (roles and organizations) when opening modal
+  const loadModalData = async () => {
+    setModalLoading(true);
+    try {
+      await Promise.all([
+        fetchRoles(),
+        fetchOrganizations()
+      ]);
+    } catch (error) {
+      message.error('Failed to load modal data');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const openCreateModal = async () => {
+    setEditingId(null);
+    setFormData({ username: '', email: '', password: '', organization: '', roles: '' });
+    setIsModalOpen(true);
+    await loadModalData();
+  };
+
+  const openEditModal = async (record) => {
+    setEditingId(record.id);
+    setFormData({
+      username: record.username,
+      email: record.email,
+      password: '',
+      organization: record.organization?.organization_id || '',
+      roles: Array.isArray(record.role) ? record.role[0] || '' : record.role || ''
+    });
+    setIsModalOpen(true);
+    await loadModalData();
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setFormData({ username: '', email: '', password: '', organization: '', roles: '' });
+    setEditingId(null);
+    setRoles([]);
+    setOrganizations([]);
   };
 
   // Memoized table columns
@@ -202,12 +285,13 @@ const UsersManager = () => {
       title: 'Roles',
       dataIndex: 'role',
       key: 'role',
-      render: (role) => (
-        <span>{Array.isArray(role) ? role.join(', ') : role || '-'}</span>
-      ),
+      render: (role) => {
+        const roleArray = Array.isArray(role) ? role : [role];
+        return roleArray.filter(Boolean).join(', ') || '-';
+      },
       sorter: (a, b) => {
-        const roleA = Array.isArray(a.role) ? a.role.join(',') : a.role || '';
-        const roleB = Array.isArray(b.role) ? b.role.join(',') : b.role || '';
+        const roleA = Array.isArray(a.role) ? a.role.join(', ') : (a.role || '');
+        const roleB = Array.isArray(b.role) ? b.role.join(', ') : (b.role || '');
         return roleA.localeCompare(roleB);
       },
       filters: [
@@ -232,16 +316,7 @@ const UsersManager = () => {
             <Button
               type="text"
               icon={<EditOutlined />}
-              onClick={() => {
-                setEditingId(record.id);
-                form.setFieldsValue({
-                  username: record.username,
-                  email: record.email,
-                  organization: record.organization?.organization_id,
-                  roles: Array.isArray(record.role) ? record.role : record.role ? [record.role] : [],
-                });
-                setIsModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             />
           )}
           {canDelete && (
@@ -257,20 +332,7 @@ const UsersManager = () => {
         </Space>
       ),
     },
-  ], [users, canUpdate, canDelete, form]);
-
-  // Memoized modal handlers
-  const handleModalOpen = useCallback(() => {
-    setEditingId(null);
-    form.resetFields();
-    setIsModalOpen(true);
-  }, [form]);
-
-  const handleModalClose = useCallback(() => {
-    setIsModalOpen(false);
-    form.resetFields();
-    setEditingId(null);
-  }, [form]);
+  ], [users, canUpdate, canDelete]);
 
   return (
     <ConfigProvider
@@ -289,7 +351,7 @@ const UsersManager = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={handleModalOpen}
+            onClick={openCreateModal}
             style={{ marginBottom: '16px' }}
           >
             Add User
@@ -304,8 +366,6 @@ const UsersManager = () => {
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => 
-              `${range[0]}-${range[1]} of ${total} items`,
           }}
         />
 
@@ -313,7 +373,7 @@ const UsersManager = () => {
           <Modal
             title={editingId ? 'Edit User' : 'Create User'}
             open={isModalOpen}
-            onCancel={handleModalClose}
+            onCancel={closeModal}
             footer={null}
             destroyOnClose
             centered
@@ -323,88 +383,124 @@ const UsersManager = () => {
             style={{ top: 20, zIndex: 99999 }}
             bodyStyle={{ padding: '24px' }}
           >
-            <Form form={form} onFinish={handleSubmit} layout="vertical">
-              <Form.Item
-                name="username"
-                label="Prefered Name"
-                rules={[{ required: true, message: 'Please input username!' }]}
-              >
-                <Input placeholder="Enter username" />
-              </Form.Item>
+            <div className="modern-form">
+              {modalLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <Spin size="large" />
+                  <div style={{ marginTop: '16px', color: '#666' }}>
+                    Loading modal data...
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit}>
+                  <div className="form-group2">
+                    <label className="modern-label">
+                      Prefered Name <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="modern-input"
+                      placeholder="Enter username"
+                      value={formData.username}
+                      onChange={(e) => handleInputChange('username', e.target.value)}
+                      required
+                    />
+                  </div>
 
-              <Form.Item
-                name="email"
-                label="Email"
-                rules={[
-                  { required: true, message: 'Please input email!' },
-                  { type: 'email', message: 'Please enter a valid email!' },
-                ]}
-              >
-                <Input placeholder="Enter email" />
-              </Form.Item>
+                  <div className="form-group2">
+                    <label className="modern-label">
+                      Email <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      className="modern-input"
+                      placeholder="Enter email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      required
+                    />
+                  </div>
 
-              {!editingId && (
-                <Form.Item
-                  name="password"
-                  label="Password"
-                  rules={[{ required: true, message: 'Please input password!' }]}
-                >
-                  <Input.Password placeholder="Enter password" />
-                </Form.Item>
+                  {!editingId && (
+                    <div className="form-group2">
+                      <label className="modern-label">
+                        Password <span style={{ color: 'red' }}>*</span>
+                      </label>
+                      <input
+                        type="password"
+                        className="modern-input"
+                        placeholder="Enter password"
+                        value={formData.password}
+                        onChange={(e) => handleInputChange('password', e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-group2">
+                    <label className="modern-label">
+                      Organization <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <select
+                      className="modern-select"
+                      value={formData.organization}
+                      onChange={(e) => handleInputChange('organization', e.target.value)}
+                      required
+                    >
+                      <option value="" disabled>Select organization</option>
+                      {organizations.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group2">
+                    <label className="modern-label">
+                      Roles <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <select
+                      className="modern-select"
+                      value={formData.roles}
+                      onChange={(e) => handleInputChange('roles', e.target.value)}
+                      required
+                    >
+                      <option value="" disabled>Select roles</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.role}>
+                          {role.role}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ marginTop: '24px', textAlign: 'right' }}>
+                    <Space>
+                      <button
+                        type="button"
+                        className="modern-cancel-button"
+                        onClick={closeModal}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="modern-submit"
+                        disabled={submitLoading}
+                      >
+                        {submitLoading ? 'Submitting...' : (editingId ? 'Update' : 'Submit')}
+                      </button>
+                    </Space>
+                  </div>
+                </form>
               )}
-
-              <Form.Item
-                name="organization"
-                label="Organization"
-                rules={[{ required: true, message: 'Please select an organization!' }]}
-              >
-                <Select placeholder="Select organization">
-                  {Array.from(new Set(users.map(user => user.organization?.organization_id).filter(Boolean))).map((orgId) => {
-                    const user = users.find(u => u.organization?.organization_id === orgId);
-                    return (
-                      <Select.Option key={orgId} value={orgId}>
-                        {user?.organization?.organization_name}
-                      </Select.Option>
-                    );
-                  })}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="roles"
-                label="Roles"
-                rules={[{ required: true, message: 'Please select at least one role!' }]}
-              >
-                <Select mode="multiple" placeholder="Select roles" allowClear>
-                  {roles.map((role) => (
-                    <Select.Option key={role.id} value={role.role}>
-                      {role.role}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
-                <Space>
-                  <Button onClick={handleModalClose}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={submitLoading}
-                    disabled={submitLoading}
-                  >
-                    {editingId ? 'Update' : 'Submit'}
-                  </Button>
-                </Space>
-              </Form.Item>
-            </Form>
+            </div>
           </Modal>
         )}
       </div>
     </ConfigProvider>
   );
-  };
-  
+};
+
 export default UsersManager;
