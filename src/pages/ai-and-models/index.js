@@ -1,11 +1,13 @@
 import { API_URL } from '../../const';
 import './index.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 
 const AiAndModels = () => {
     const [response, setResponse] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [columns, setColumns] = useState([]);
+    const [columnsLoading, setColumnsLoading] = useState(false);
     const [formData, setFormData] = useState({
         model: 'Prediction', // Default set to Prediction
         col: '',
@@ -14,15 +16,41 @@ const AiAndModels = () => {
     });
     const [rfInputs, setRfInputs] = useState({});
 
-    const rawData = localStorage.getItem('fileData');
-    let fileData = null;
-    try {
-        fileData = rawData ? JSON.parse(rawData)?.data ? JSON.parse(JSON.parse(rawData).data) : null : null;
-    } catch (error) {
-        console.error('Error parsing fileData:', error);
-    }
+    // Fetch columns from API
+    const fetchColumns = async () => {
+        setColumnsLoading(true);
+        try {
+            // Get user ID from localStorage
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const userId = user.id;
 
-    const columns = fileData && Object.keys(fileData)?.length > 0 ? Object.keys(fileData) : [];
+            const response = await fetch(`${API_URL}/models`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-User-ID': userId,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setColumns(data.columns || []);
+            } else {
+                console.error('Failed to fetch columns');
+                setColumns([]);
+            }
+        } catch (error) {
+            console.error('Error fetching columns:', error);
+            setColumns([]);
+        } finally {
+            setColumnsLoading(false);
+        }
+    };
+
+    // Fetch columns on component mount
+    useEffect(() => {
+        fetchColumns();
+    }, []);
 
     const models = [
         { id: 'Classification', label: 'Classification', description: 'Discover hidden patterns and segment data using clustering' },
@@ -352,9 +380,11 @@ const AiAndModels = () => {
                             className="modern-select"
                             value={formData.col}
                             onChange={handleColumnChange}
-                            disabled={!formData.model}
+                            disabled={!formData.model || columnsLoading}
                         >
-                            <option value="" disabled>Select target column</option>
+                            <option value="" disabled>
+                                {columnsLoading ? 'Loading columns...' : 'Select target column'}
+                            </option>
                             {columns.map((column) => (
                                 <option key={column} value={column}>
                                     {column}
@@ -407,7 +437,7 @@ const AiAndModels = () => {
                 <button 
                     type="submit" 
                     className="modern-submit"
-                    disabled={loading || !formData.model || !formData.col}
+                    disabled={loading || !formData.model || !formData.col || columnsLoading}
                 >
                     {loading ? 'Analyzing...' : `Run ${formData.model} Analysis`}
                 </button>

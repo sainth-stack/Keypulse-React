@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Table,
   Button,
@@ -14,8 +14,9 @@ import {
   DatePicker,
   Select,
   Descriptions,
+  Spin,
 } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import moment from 'moment';
 import { isSuperAdmin } from '../../../utils';
@@ -39,6 +40,11 @@ const UserSessions = () => {
     dateRange: [],
   });
 
+  // Debug initial state
+  useEffect(() => {
+    console.log('Initial Filter Params:', filterParams);
+  }, []);
+
   // Get permissions from localStorage
   const userPermissions = JSON.parse(localStorage.getItem('permissions') || '[]');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -55,7 +61,7 @@ const UserSessions = () => {
       let params = {};
       
       if (!isSuperAdmin()) {
-        params.orgId = user?.organization;
+        params.orgId = user?.organization?.organization_id;
       } else {
         if (filterParams.orgId) {
           params.orgId = filterParams.orgId;
@@ -67,10 +73,22 @@ const UserSessions = () => {
       }
 
       if (filterParams.dateRange && filterParams.dateRange.length === 2) {
-        params.startDate = moment(filterParams.dateRange[0]).format('YYYY-MM-DD');
-        params.endDate = moment(filterParams.dateRange[1]).format('YYYY-MM-DD');
+        console.log(filterParams.dateRange,'dsfodsjfdoifdj')
+        console.log('Raw date 0:', filterParams.dateRange[0].toString());
+        console.log('Raw date 1:', filterParams.dateRange[1].toString());
+        
+        // Since dates are already moment objects, use them directly
+        params.startDate = filterParams.dateRange[0].format('YYYY-MM-DD');
+        params.endDate = filterParams.dateRange[1].format('YYYY-MM-DD');
+        
+        console.log('Date Range Filter:', {
+          originalDates: filterParams.dateRange,
+          startDate: params.startDate,
+          endDate: params.endDate
+        });
       }
 
+      console.log('API Call Params:', params);
       const response = await axios.get(`${API_URL}/sessions`, {
         params
       });
@@ -101,14 +119,13 @@ const UserSessions = () => {
 
   // Fetch users
   const fetchUsers = async () => {
-    setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/users`,{
-        params:{
-          organization_id: !isSuperAdmin()? user?.organization :''
+      const response = await axios.get(`${API_URL}/users`, {
+        params: {
+          organization_id: !isSuperAdmin() ? user?.organization?.organization_id : ''
         }
       });
-      const dataWithIndex = (isSuperAdmin() ?(response?.data) :response?.data?.users)?.map((user, index) => ({
+      const dataWithIndex = response?.data?.users?.map((user, index) => ({
         ...user,
         key: user.id,
         sno: index + 1,
@@ -116,8 +133,6 @@ const UserSessions = () => {
       setUsers(dataWithIndex);
     } catch (error) {
       message.error('Failed to fetch users');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -133,10 +148,15 @@ const UserSessions = () => {
     }
   };
 
+  // Initial load - fetch users and organizations once
   useEffect(() => {
-    fetchSessions();
     fetchUsers();
     fetchOrganizations();
+  }, []);
+
+  // Fetch sessions when filters change
+  useEffect(() => {
+    fetchSessions();
   }, [filterParams]);
 
   // Handle form submission
@@ -144,22 +164,27 @@ const UserSessions = () => {
     setSubmitLoading(true);
     try {
       const formData = new FormData();
-      formData.append('userId', values.userId);
-      formData.append('userName', values.userName);
-      formData.append('userEmail', values.userEmail);
-      formData.append('orgId', values.orgId);
-      formData.append('ipAddress', values.ipAddress);
-      formData.append('deviceInfo', values.deviceInfo);
-      formData.append('loginTime', moment(values.loginTime).toISOString());
-      formData.append('logoutTime', moment(values.logoutTime).toISOString());
-      formData.append('status', values.status);
+      if (values.deviceInfo) {
+        formData.append('deviceInfo', values.deviceInfo);
+      }
+      if (values.loginTime) {
+        formData.append('loginTime', moment(values.loginTime).toISOString());
+      }
+      if (values.logoutTime) {
+        formData.append('logoutTime', moment(values.logoutTime).toISOString());
+      }
+      if (values.status) {
+        formData.append('status', values.status);
+      }
 
       if (editingId) {
-        await axios.put(`${API_URL}/sessions/${editingId}`, formData, {
+        // Update existing session
+        await axios.post(`${API_URL}/sessions/${editingId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         message.success('Session updated successfully');
       } else {
+        // Create new session
         await axios.post(`${API_URL}/sessions`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
@@ -171,6 +196,7 @@ const UserSessions = () => {
       setEditingId(null);
       fetchSessions();
     } catch (error) {
+      console.error('Error submitting form:', error);
       message.error(error.response?.data?.message || 'Operation failed');
     } finally {
       setSubmitLoading(false);
@@ -184,20 +210,27 @@ const UserSessions = () => {
       message.success('Session deleted successfully');
       fetchSessions();
     } catch (error) {
+      console.error('Error deleting session:', error);
       message.error(error.response?.data?.message || 'Delete failed');
     }
   };
 
   // Handle filter changes
   const handleFilterChange = (name, value) => {
-    setFilterParams(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    console.log('Filter Change:', { name, value });
+    setFilterParams(prev => {
+      const newParams = {
+        ...prev,
+        [name]: value
+      };
+      console.log('New Filter Params:', newParams);
+      return newParams;
+    });
   };
 
   // Reset filters
   const resetFilters = () => {
+    console.log('Resetting filters');
     setFilterParams({
       userId: '',
       orgId: '',
@@ -205,7 +238,31 @@ const UserSessions = () => {
     });
   };
 
-  const columns = [
+  const openCreateModal = () => {
+    setEditingId(null);
+    form.resetFields();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (record) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      deviceInfo: record.deviceInfo,
+      loginTime: record.loginTime ? moment(record.loginTime) : null,
+      logoutTime: record.logoutTime ? moment(record.logoutTime) : null,
+      status: record.status,
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    form.resetFields();
+    setEditingId(null);
+  };
+
+  // Memoized table columns
+  const columns = useMemo(() => [
     {
       title: 'S.No',
       dataIndex: 'sno',
@@ -319,7 +376,7 @@ const UserSessions = () => {
         </Space>
       ),
     },
-  ];
+  ], [organizations, canUpdate, canDelete]);
 
   return (
     <ConfigProvider
@@ -336,7 +393,7 @@ const UserSessions = () => {
       <div style={{ padding: '24px' }}>
         <div style={{ marginBottom: '16px', padding: '16px', background: '#fafafa', borderRadius: '8px' }}>
           <Row gutter={16}>
-            <Col span={isSuperAdmin() ? 6 : 8}>
+            <Col span={isSuperAdmin() ? 8 : 12}>
               <Select
                 style={{ width: '100%' }}
                 placeholder="Select User"
@@ -352,7 +409,7 @@ const UserSessions = () => {
               </Select>
             </Col>
             {isSuperAdmin() && (
-              <Col span={6}>
+              <Col span={8}>
                 <Select
                   style={{ width: '100%' }}
                   placeholder="Select Organization"
@@ -366,24 +423,14 @@ const UserSessions = () => {
                 </Select>
               </Col>
             )}
-            <Col span={isSuperAdmin() ? 8 : 12}>
+            <Col span={isSuperAdmin() ? 6 : 10}>
               <RangePicker
                 style={{ width: '100%' }}
                 value={filterParams.dateRange}
                 onChange={(dates) => handleFilterChange('dateRange', dates)}
-                showTime={{ format: 'HH:mm' }}
-                format="YYYY-MM-DD HH:mm"
+                format="YYYY-MM-DD"
+                placeholder={['Start Date', 'End Date']}
               />
-            </Col>
-            <Col span={2}>
-              <Button
-                type="primary"
-                icon={<SearchOutlined />}
-                onClick={fetchSessions}
-                style={{ width: '100%' }}
-              >
-                Search
-              </Button>
             </Col>
             <Col span={2}>
               <Button
@@ -400,11 +447,7 @@ const UserSessions = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingId(null);
-              form.resetFields();
-              setIsModalOpen(true);
-            }}
+            onClick={openCreateModal}
             style={{ marginBottom: '16px' }}
           >
             Add Session
@@ -440,90 +483,24 @@ const UserSessions = () => {
           <Modal
             title={editingId ? 'Edit Session' : 'Create Session'}
             open={isModalOpen}
-            onCancel={() => {
-              setIsModalOpen(false);
-              form.resetFields();
-              setEditingId(null);
-            }}
+            onCancel={closeModal}
             footer={null}
             destroyOnClose
             centered
             mask={true}
             maskClosable={false}
-            width={700}
+            width={600}
             style={{ top: 20 }}
             bodyStyle={{ padding: '24px' }}
           >
             <Form form={form} onFinish={handleSubmit} layout="vertical">
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="userId"
-                    label="User ID"
-                    rules={[{ required: true, message: 'Please input user ID!' }]}
-                  >
-                    <Input placeholder="Enter user ID" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="userName"
-                    label="User Name"
-                    rules={[{ required: true, message: 'Please input user name!' }]}
-                  >
-                    <Input placeholder="Enter user name" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="userEmail"
-                    label="User Email"
-                    rules={[
-                      { required: true, message: 'Please input user email!' },
-                      { type: 'email', message: 'Please enter a valid email!' },
-                    ]}
-                  >
-                    <Input placeholder="Enter user email" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="orgId"
-                    label="Organization"
-                    rules={[{ required: true, message: 'Please select organization!' }]}
-                  >
-                    <Select placeholder="Select organization">
-                      {organizations.map(org => (
-                        <Option key={org.id} value={org.id}>{org.name}</Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="ipAddress"
-                    label="IP Address"
-                    rules={[{ required: true, message: 'Please input IP address!' }]}
-                  >
-                    <Input placeholder="Enter IP address" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="deviceInfo"
-                    label="Device Info"
-                    rules={[{ required: true, message: 'Please input device info!' }]}
-                  >
-                    <Input placeholder="Enter device info" />
-                  </Form.Item>
-                </Col>
-              </Row>
+              <Form.Item
+                name="deviceInfo"
+                label="Device Info"
+                rules={[{ required: true, message: 'Please input device info!' }]}
+              >
+                <Input placeholder="e.g., Chrome/Windows 10" />
+              </Form.Item>
 
               <Row gutter={16}>
                 <Col span={12}>
@@ -532,7 +509,11 @@ const UserSessions = () => {
                     label="Login Time"
                     rules={[{ required: true, message: 'Please select login time!' }]}
                   >
-                    <DatePicker showTime format="YYYY-MM-DD HH:mm:ss" style={{ width: '100%' }} />
+                    <DatePicker 
+                      format="YYYY-MM-DD" 
+                      style={{ width: '100%' }}
+                      placeholder="Select login time"
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -540,7 +521,11 @@ const UserSessions = () => {
                     name="logoutTime"
                     label="Logout Time"
                   >
-                    <DatePicker showTime format="YYYY-MM-DD HH:mm:ss" style={{ width: '100%' }} />
+                    <DatePicker 
+                      format="YYYY-MM-DD" 
+                      style={{ width: '100%' }}
+                      placeholder="Select logout time"
+                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -560,12 +545,7 @@ const UserSessions = () => {
 
               <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
                 <Space>
-                  <Button
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      form.resetFields();
-                    }}
-                  >
+                  <Button onClick={closeModal}>
                     Cancel
                   </Button>
                   <Button type="primary" htmlType="submit" loading={submitLoading}>

@@ -6,15 +6,12 @@ import { useNavigate } from "react-router-dom";
 import Logo from '../../../../../assets/images/logo3.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
 import { useLocation } from "react-router-dom";
+import sessionManager from "../../../../../utils/sessionManager";
 function Navbar() {
   const navigate = useNavigate()
   const [name, setName] = useState("Dashboard")
   const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("userName")
-    localStorage.removeItem("permissions")
-    localStorage.clear();
-    navigate('/login')
+    sessionManager.logout();
   }
   let location = useLocation();
   useEffect(() => {

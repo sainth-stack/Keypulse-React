@@ -8,15 +8,12 @@ import Logo2 from '../../assets/images/ai-priori.png'
 import kalmar from '../../assets/images/kalmar.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
 import { useLocation } from "react-router-dom";
+import sessionManager from "../../utils/sessionManager";
 function Navbar() {
   const navigate = useNavigate()
   const [name, setName] = useState("Dashboard")
   const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("userName")
-    localStorage.removeItem("permissions")
-    localStorage.clear();
-    navigate('/login')
+    sessionManager.logout();
   }
   let location = useLocation();
   useEffect(() => {
@@ -33,7 +30,7 @@ function Navbar() {
     }
   }, [location.pathname])
   const image=localStorage.getItem('logo')
-  const logo= image ? `data:image/png;base64,${image}` : kalmar
+  const logo= kalmar
 
   return (
     <>

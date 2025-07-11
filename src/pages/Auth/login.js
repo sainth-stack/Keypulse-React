@@ -9,6 +9,7 @@ import './styles.css'
 import axios from 'axios'
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../const";
+import sessionManager from "../../utils/sessionManager";
 
 export const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -17,14 +18,6 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const fetchOrganizations = async (user) => {
-    try {
-      const response2 = await axios.get(`${API_URL}/organizations/${user?.organization}`)
-      localStorage.setItem('logo',response2.data['Organization Details']['logo_data'])
-    } catch (error) {
-    } finally {
-    }
-  };
 
 
   const fetchRoles = async (roles) => {
@@ -59,7 +52,7 @@ export const Login = () => {
     }
   };
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     setLoading(true);
     event.preventDefault();
     
@@ -67,25 +60,75 @@ export const Login = () => {
     formData.append('email', email);
     formData.append('password', password);
 
-    axios.post(`${API_URL}/login`, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      }
-    })
-    .then((response) => {
-      setLoading(false);
-      fetchRoles(response.data?.user?.role)
-      fetchOrganizations(response.data?.user)
-      localStorage.setItem('user', JSON.stringify(response.data?.user));
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('userName', response.data?.user?.username);
+    try {
+      const response = await axios.post(`${API_URL}/login`, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }
+      });
       
-    })
-    .catch((err) => {
+      console.log('Login Response:', response.data); // Debug: Check what we get from API
+      
+      setLoading(false);
+      fetchRoles(response.data?.user?.role);
+      localStorage.setItem('user', JSON.stringify(response.data?.user));
+      localStorage.setItem('token', response.data?.user?.username);
+      localStorage.setItem('userName', response.data?.user?.username);
+      localStorage.setItem('logo',response.data?.user?.organization?.organization_logo)
+      // Store tenant information and setup session timeout
+      // Check for tenant data in response
+      const tenantData = {
+        tenant_id: response.data?.user?.tenant_id || 'default-tenant',
+        tenant_name: response.data?.user?.tenant_name || 'Default Tenant',
+        tenant_type: response.data?.user?.tenant_type || 'default',
+        tenant_timeout: response.data?.user?.tenant_timeout || 30 // Default 30 minutes
+      };
+      
+      console.log('Tenant Data:', tenantData); // Debug: Check tenant data
+      localStorage.setItem('tenant', JSON.stringify(tenantData));
+      
+      // Set session timeout based on tenant configuration
+      const timeoutMinutes = tenantData.tenant_timeout;
+      const sessionExpiryTime = Date.now() + (timeoutMinutes * 60 * 1000);
+      localStorage.setItem('sessionExpiryTime', sessionExpiryTime.toString());
+      
+      console.log('Session Expiry Time:', new Date(sessionExpiryTime)); // Debug: Check expiry time
+      
+      // Initialize session monitoring using the session manager
+      try {
+        console.log('Initializing session manager...'); // Debug
+        sessionManager.initializeSessionTimeout();
+        console.log('Session manager initialized successfully!'); // Debug
+        
+        // Create session tracking
+        await sessionManager.createSession(response.data?.user);
+        console.log('Session tracking created successfully!'); // Debug
+      } catch (error) {
+        console.error('Error initializing session manager:', error);
+      }
+      
+      // Call the new API to get the file name, passing user id in header
+      const userId = response.data?.user?.id;
+      if (userId) {
+        try {
+          const res = await axios.get('http://34.244.163.169:4004/api/get_file_name', {
+            headers: {
+              'X-User-ID': userId,
+            }
+          });
+          if (res.data && res.data.file_name) {
+            localStorage.setItem('fileName', res.data.file_name);
+          }
+        } catch (err) {
+          console.error('Error fetching file name:', err);
+        }
+      }
+      
+    } catch (err) {
       setLoading(false);
       console.log(err);
       alert("Login failed. Please check your credentials and try again.");
-    });
+    }
   };
 
   return (

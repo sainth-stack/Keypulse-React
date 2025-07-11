@@ -88,20 +88,60 @@ code {
   }
 }
 
-
+/* Fix z-index layering for antd components */
 .ant-modal-mask {
-  z-index: 1200;
+  z-index: 1000;
 }
+
 .ant-modal-wrap {
-  z-index: 1200;
+  z-index: 1000;
 }
 
+.ant-select-dropdown {
+  z-index: 1050;
+}
 
+.ant-picker-dropdown {
+  z-index: 1050;
+}
 
+.ant-dropdown {
+  z-index: 1050;
+}
 
+.ant-tooltip {
+  z-index: 1060;
+}
 
+.ant-popover {
+  z-index: 1060;
+}
 
+.ant-notification {
+  z-index: 1070;
+}
 
+.ant-message {
+  z-index: 1080;
+}
+
+/* Ensure antd Select and DatePicker work correctly */
+.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: #40a9ff;
+}
+
+.ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.ant-picker:hover, .ant-picker-focused {
+  border-color: #40a9ff;
+}
+
+.ant-picker-focused {
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
 
 /* Adjust any other styles as needed */
 /* ... */

@@ -17,11 +17,19 @@ import UsersManager from "./pages/admin-screens/users/UsersManager";
 import UserRoles from "./pages/admin-screens/user-roles";
 import UserSessions from "./pages/admin-screens/user-sessions"
 import AccessDenied from "./pages/access-denied";
+import ProtectedRoute from "./components/ProtectedRoute";
+import SessionStatus from "./components/SessionStatus";
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AdminLayout />}>
+        {/* Protected routes wrapped with ProtectedRoute */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <AdminLayout />
+          </ProtectedRoute>
+        }>
           <Route path="/" element={<Bot2 />} />
           <Route path="/bot" element={<Bot2 />} />
           <Route path="/kprocess" element={<Bot />} />
@@ -31,18 +39,30 @@ function App() {
           <Route path="/ai-models" element={<AiAndModels />} />
           <Route path="/kpi" element={<Kpi />} />
         </Route>
-        <Route path="/" element={<AdminScrenLayout />}>
+        
+        {/* Admin screens also protected */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <AdminScrenLayout />
+          </ProtectedRoute>
+        }>
           <Route path="/tenants" element={<TenantsManager />} />
           <Route path="/organizations" element={<OrganizationsManager />} />
           <Route path="/users" element={<UsersManager />} />
           <Route path="/user-roles" element={<UserRoles />} />
           <Route path="/user-sessions" element={<UserSessions />} />
         </Route>
+        
+        {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/access-denied" element={<AccessDenied />} />
-
       </Routes>
+      
+      {/* Session Status Display - only show on protected routes */}
+      {window.location.pathname !== '/login' && window.location.pathname !== '/register' && (
+        <SessionStatus showDetails={false} />
+      )}
     </BrowserRouter>
   );
 }

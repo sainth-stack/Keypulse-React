@@ -73,7 +73,7 @@ const UserRoles = () => {
     try {
       const response = await axios.get(`${API_URL}/roles`, {
         params: {
-          o_id: !isSuperAdmin() ? user?.organization : ''
+          o_id: !isSuperAdmin() ? user?.organization?.organization_id : ''
         }
       });
       const dataWithIndex = response.data.roles.map((role, index) => ({

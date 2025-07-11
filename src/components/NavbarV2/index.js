@@ -5,14 +5,11 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from '../../assets/images/Logo2.png'
 import avatar from '../../assets/svg/avatar.svg'
+import sessionManager from "../../utils/sessionManager";
 function NavbarV2() {
   const navigate = useNavigate()
   const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("permissions")
-    localStorage.clear();
-    navigate('/login')
-    
+    sessionManager.logout();
   }
   return (
     <>

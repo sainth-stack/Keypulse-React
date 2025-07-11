@@ -25,24 +25,25 @@ const OrganizationsManager = () => {
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
   const [file, setFile] = useState(null);
   const user = JSON.parse(localStorage.getItem('user') || "{}");
   const permissions = JSON.parse(localStorage.getItem('permissions') || '[]') || [];
 
-  const fetchOrganizations = async (data) => {
+  const fetchOrganizations = async () => {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/organizations`, {
         params: {
-          tenant_id: !isSuperAdmin() ? user?.tenant : ''
+          tenant_id: !isSuperAdmin() ? user?.tenant?.tenant_id : ''
         }
       });
       const dataWithIndex = response?.data?.organizations?.map((org, index) => ({
         ...org,
-        tenant: data.filter((item) => item?.id === org?.tenant)?.[0]?.name,
+        tenant: org?.tenant['Tenant Name'],
         key: org.id,
         sno: index + 1,
-        logo: org.logo_data ? `data:image/png;base64,${org.logo_data}` : null
+        logo: org.logo_data ? `${org.logo_data}` : null
       }));
       setOrganizations(dataWithIndex);
     } catch (error) {
@@ -52,18 +53,22 @@ const OrganizationsManager = () => {
     }
   };
 
-  const fetchTenants = async () => {
+  // Fetch tenants data for modal
+  const fetchModalData = async () => {
+    setModalLoading(true);
     try {
       const response = await axios.get(`${API_URL}/tenants`);
       setTenants(response?.data?.tenants || []);
-      fetchOrganizations(response?.data?.tenants || []);
     } catch (error) {
-      message.error('Failed to fetch tenants');
+      console.error('Failed to fetch modal data:', error);
+      message.error('Failed to load modal data. Please try again.');
+    } finally {
+      setModalLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTenants();
+    fetchOrganizations();
   }, []);
 
   const handleSubmit = async (values) => {
@@ -189,6 +194,7 @@ const OrganizationsManager = () => {
                   parent_organization_id: record.parent_organization_id
                 });
                 setIsModalOpen(true);
+                fetchModalData();
               }}
             />
           )}
@@ -228,6 +234,7 @@ const OrganizationsManager = () => {
               setEditingId(null);
               form.resetFields();
               setIsModalOpen(true);
+              fetchModalData();
             }}
             style={{ marginBottom: '16px' }}
           >
@@ -260,6 +267,7 @@ const OrganizationsManager = () => {
             width={600}
             style={{ top: 20, zIndex: 99999 }}
             bodyStyle={{ padding: '24px' }}
+            loading={modalLoading}
           >
             <Form form={form} onFinish={handleSubmit} layout="vertical">
               <Form.Item
@@ -267,7 +275,7 @@ const OrganizationsManager = () => {
                 label="Tenant"
                 rules={[{ required: true, message: 'Please select tenant!' }]}
               >
-                <Select placeholder="Select tenant">
+                <Select placeholder="Select tenant" loading={modalLoading}>
                   {tenants.map(tenant => (
                     <Select.Option key={tenant.id} value={tenant.id}>
                       {tenant.name}

@@ -20,12 +20,12 @@ const UsersManager = () => {
   const [users, setUsers] = useState([]);
   const [organizations, setOrganizations] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [tenants, setTenants] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
 
   // Ref to track if initial load is done
   const initialLoadRef = useRef(false);
@@ -55,7 +55,7 @@ const UsersManager = () => {
       
       const response = await axios.get(`${API_URL}/users`, {
         params: {
-          organization_id: !currentIsSuper ? currentUser?.organization : ''
+          organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
         }
       });
       
@@ -71,7 +71,54 @@ const UsersManager = () => {
     }
   }, []);
 
-  // Initial data load effect - runs only once
+  // Fetch organizations and roles data for modal
+  const fetchModalData = useCallback(async () => {
+    setModalLoading(true);
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentIsSuper = isSuperAdmin();
+
+      // Only fetch organizations and roles when modal opens
+      const [orgResponse, rolesResponse] = await Promise.all([
+        axios.get(`${API_URL}/organizations`, {
+          params: {
+            tenant_id: !currentIsSuper ? currentUser?.tenant?.tenant_id : ''
+          }
+        }),
+        axios.get(`${API_URL}/roles`, {
+          params: {
+            o_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
+          }
+        })
+      ]);
+
+      // Process organizations data
+      const orgsData = orgResponse?.data?.organizations || [];
+      const processedOrgs = orgsData.map((org, index) => ({
+        ...org,
+        key: org.id,
+        sno: index + 1,
+      }));
+      setOrganizations(processedOrgs);
+
+      // Process roles data
+      const rolesData = rolesResponse?.data?.roles || [];
+      const processedRoles = rolesData.map((role, index) => ({
+        ...role,
+        key: role.id,
+        sno: index + 1,
+      }));
+      setRoles(processedRoles);
+
+    } catch (error) {
+      console.error('Failed to fetch modal data:', error);
+      message.error('Failed to load modal data. Please try again.');
+    } finally {
+      setModalLoading(false);
+    }
+  }, []);
+
+  // Initial data load effect - runs only once, only fetches users
   useEffect(() => {
     if (!initialLoadRef.current) {
       initialLoadRef.current = true;
@@ -84,28 +131,15 @@ const UsersManager = () => {
           const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
           const currentIsSuper = isSuperAdmin();
 
-          // Execute all API calls in parallel
-          const [usersResponse, orgResponse, tenantsResponse, rolesResponse] = await Promise.all([
-            axios.get(`${API_URL}/users`, {
-              params: {
-                organization_id: !currentIsSuper ? currentUser?.organization : ''
-              }
-            }),
-            axios.get(`${API_URL}/organizations`, {
-              params: {
-                tenant_id: !currentIsSuper ? currentUser?.tenant : ''
-              }
-            }),
-            axios.get(`${API_URL}/tenants`),
-            axios.get(`${API_URL}/roles`, {
-              params: {
-                o_id: !currentIsSuper ? currentUser?.organization : ''
-              }
-            })
-          ]);
+          // Only fetch users data on initial load for faster performance
+          const response = await axios.get(`${API_URL}/users`, {
+            params: {
+              organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
+            }
+          });
 
           // Process users data
-          const usersData = (currentIsSuper ? usersResponse?.data : usersResponse?.data?.users) || [];
+          const usersData = (currentIsSuper ? response?.data : response?.data?.users) || [];
           const processedUsers = usersData.map((user, index) => ({
             ...user,
             key: user.id,
@@ -113,37 +147,9 @@ const UsersManager = () => {
           }));
           setUsers(processedUsers);
 
-          // Process tenants data
-          const tenantsData = tenantsResponse?.data?.tenants || [];
-          const processedTenants = tenantsData.map((tenant, index) => ({
-            ...tenant,
-            key: tenant.id,
-            sno: index + 1,
-          }));
-          setTenants(processedTenants);
-
-          // Process organizations data
-          const orgsData = orgResponse?.data?.organizations || [];
-          const processedOrgs = orgsData.map((org, index) => ({
-            ...org,
-            tenant: tenantsData.find((item) => item?.id === org?.tenant)?.name || '',
-            key: org.id,
-            sno: index + 1,
-          }));
-          setOrganizations(processedOrgs);
-
-          // Process roles data
-          const rolesData = rolesResponse?.data?.roles || [];
-          const processedRoles = rolesData.map((role, index) => ({
-            ...role,
-            key: role.id,
-            sno: index + 1,
-          }));
-          setRoles(processedRoles);
-
         } catch (error) {
-          console.error('Failed to fetch data:', error);
-          message.error('Failed to load data. Please try again.');
+          console.error('Failed to fetch users data:', error);
+          message.error('Failed to load users data. Please try again.');
         } finally {
           setLoading(false);
         }
@@ -231,13 +237,13 @@ const UsersManager = () => {
       title: 'Organization',
       dataIndex: 'organization',
       key: 'organization',
-      render: (orgId) => {
-        const org = organizations.find((o) => o.id === orgId);
-        return org ? org.name : '-';
+      render: (org) => {
+        // Use organization data directly from user object
+        return org?.organization_name || '-';
       },
       sorter: (a, b) => {
-        const orgA = organizations.find(o => o.id === a.organization)?.name || '';
-        const orgB = organizations.find(o => o.id === b.organization)?.name || '';
+        const orgA = a.organization?.organization_name || '';
+        const orgB = b.organization?.organization_name || '';
         return orgA.localeCompare(orgB);
       },
     },
@@ -275,16 +281,7 @@ const UsersManager = () => {
             <Button
               type="text"
               icon={<EditOutlined />}
-              onClick={() => {
-                setEditingId(record.id);
-                form.setFieldsValue({
-                  username: record.username,
-                  email: record.email,
-                  organization: record.organization,
-                  roles: Array.isArray(record.role) ? record.role : record.role ? [record.role] : [],
-                });
-                setIsModalOpen(true);
-              }}
+              onClick={() => handleEditClick(record)}
             />
           )}
           {canDelete && (
@@ -300,20 +297,36 @@ const UsersManager = () => {
         </Space>
       ),
     },
-  ], [organizations, users, canUpdate, canDelete, form]);
+  ], [users, canUpdate, canDelete, form]);
 
   // Memoized modal handlers
   const handleModalOpen = useCallback(() => {
     setEditingId(null);
     form.resetFields();
     setIsModalOpen(true);
-  }, [form]);
+    // Fetch modal data when opening
+    fetchModalData();
+  }, [form, fetchModalData]);
 
   const handleModalClose = useCallback(() => {
     setIsModalOpen(false);
     form.resetFields();
     setEditingId(null);
   }, [form]);
+
+  // Handle edit button click
+  const handleEditClick = useCallback((record) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      username: record.username,
+      email: record.email,
+      organization: record.organization?.organization_id,
+      roles: Array.isArray(record.role) ? record.role : record.role ? [record.role] : [],
+    });
+    setIsModalOpen(true);
+    // Fetch modal data when opening for edit
+    fetchModalData();
+  }, [form, fetchModalData]);
 
   return (
     <ConfigProvider
@@ -365,6 +378,7 @@ const UsersManager = () => {
             width={600}
             style={{ top: 20, zIndex: 99999 }}
             bodyStyle={{ padding: '24px' }}
+            loading={modalLoading}
           >
             <Form form={form} onFinish={handleSubmit} layout="vertical">
               <Form.Item
@@ -401,7 +415,7 @@ const UsersManager = () => {
                 label="Organization"
                 rules={[{ required: true, message: 'Please select an organization!' }]}
               >
-                <Select placeholder="Select organization">
+                <Select placeholder="Select organization" loading={modalLoading}>
                   {organizations.map((org) => (
                     <Select.Option key={org.id} value={org.id}>
                       {org.name}
@@ -415,7 +429,7 @@ const UsersManager = () => {
                 label="Roles"
                 rules={[{ required: true, message: 'Please select at least one role!' }]}
               >
-                <Select mode="multiple" placeholder="Select roles" allowClear>
+                <Select mode="multiple" placeholder="Select roles" allowClear loading={modalLoading}>
                   {roles.map((role) => (
                     <Select.Option key={role.id} value={role.role}>
                       {role.role}
