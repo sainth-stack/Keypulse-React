@@ -125,7 +125,8 @@ const UserSessions = () => {
           organization_id: !isSuperAdmin() ? user?.organization?.organization_id : ''
         }
       });
-      const dataWithIndex = response?.data?.users?.map((user, index) => ({
+      const data=isSuperAdmin()?response?.data:response?.data?.users
+      const dataWithIndex = data?.map((user, index) => ({
         ...user,
         key: user.id,
         sno: index + 1,

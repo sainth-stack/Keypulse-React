@@ -184,18 +184,11 @@ const Bot2 = () => {
 
   const fileInputRef = useRef(null);
 
-  const handleIconClick = () => {
-    fileInputRef.current.click(); 
-  };
 
   const messagesEndRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    // scrollToBottom();
   }, [messages]);
   
   return (
