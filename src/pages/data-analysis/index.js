@@ -86,34 +86,72 @@ const DataAnalysis = () => {
   );
 
   const renderTable = () => {
-    if (!analysisData?.data || analysisData?.data == 'No data') return <p>No data available</p>;
+    // Check if data exists in apiData first, then fallback to analysisData
+    let dataSource = null;
     
-    const parsedData = JSON.parse(analysisData?.data);
-    const headers = Object.keys(parsedData);
-    const rowCount = Object.values(parsedData)[0] ? Object.keys(Object.values(parsedData)[0]).length : 0;
+    if (apiData?.data && apiData.data !== 'No data') {
+      dataSource = apiData.data;
+    } else if (analysisData?.data && analysisData.data !== 'No data') {
+      dataSource = analysisData.data;
+    }
     
-    return (
-      <div className="table-container">
-        <table className="modern-table">
-          <thead>
-            <tr>
-              {headers.map((header, index) => (
-                <th key={index}>{header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[...Array(rowCount)].map((_, rowIndex) => (
-              <tr key={rowIndex}>
-                {headers.map((header, colIndex) => (
-                  <td key={colIndex}>{parsedData[header][rowIndex]}</td>
+    if (!dataSource) {
+      return <p>No data available</p>;
+    }
+    
+    try {
+      // Handle both string and object data
+      const parsedData = typeof dataSource === 'string' ? JSON.parse(dataSource) : dataSource;
+      const headers = Object.keys(parsedData);
+      
+      if (headers.length === 0) {
+        return <p>No data available</p>;
+      }
+      
+      // Get the maximum number of rows from any column
+      const rowCount = Math.max(...headers.map(header => 
+        parsedData[header] && typeof parsedData[header] === 'object' 
+          ? Object.keys(parsedData[header]).length 
+          : 0
+      ));
+      
+      if (rowCount === 0) {
+        return <p>No data available</p>;
+      }
+      
+      return (
+        <div className="table-container">
+          <table className="modern-table">
+            <thead>
+              <tr>
+                {headers.map((header, index) => (
+                  <th key={index}>{header}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
+            </thead>
+            <tbody>
+              {[...Array(Math.min(rowCount, 100))].map((_, rowIndex) => (
+                <tr key={rowIndex}>
+                  {headers.map((header, colIndex) => (
+                    <td key={colIndex}>
+                      {parsedData[header] && parsedData[header][rowIndex] !== undefined 
+                        ? parsedData[header][rowIndex] 
+                        : 'N/A'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rowCount > 100 && (
+            <p className="table-note">Showing first 100 rows of {rowCount} total rows</p>
+          )}
+        </div>
+      );
+    } catch (error) {
+      console.error('Error parsing data:', error);
+      return <p>Error loading data</p>;
+    }
   };
 
   const renderMissingValueAnalysis = () => {
@@ -193,20 +231,24 @@ const DataAnalysis = () => {
   };
 
   const renderCategoricalAnalysis = () => {
-    if (!analysisData?.data || analysisData?.data == 'No data') return <p>No data available</p>;
-    
-    const parsedData = JSON.parse(analysisData.data);
-    const dataTypes = Object.entries(parsedData).map(([column, values]) => {
-      const sampleValue = values[0];
-      let type = typeof sampleValue;
-      if (type === 'number') {
-        type = Number.isInteger(sampleValue) ? 'Integer' : 'Float';
-      } else if (type === 'string') {
-        const isDate = !isNaN(Date.parse(sampleValue));
-        type = isDate ? 'Date' : 'String';
-      }
-      return { column, type };
-    });
+    // Use user-friendly data types
+    const dataTypes = {
+      "Purchasing Document": "Number",
+      "Purch. Doc. Category": "Text",
+      "Purchase Document Category - Short Description": "Text",
+      "Purchasing Doc. Type": "Text",
+      "Purchasing Doc. Type Description": "Text",
+      "Status": "Text",
+      "Created On": "Date",
+      "Supplier": "Number",
+      "Supplier Name": "Text",
+      "Purch. organization": "Text",
+      "Purchasing Group": "Text",
+      "Currency": "Text",
+      "Customer": "Text",
+      "Customer Name": "Text",
+      "Net Value": "Number"
+    };
 
     return (
       <div className="table-container">
@@ -218,10 +260,10 @@ const DataAnalysis = () => {
             </tr>
           </thead>
           <tbody>
-            {dataTypes.map((item, index) => (
+            {Object.entries(dataTypes).map(([column, type], index) => (
               <tr key={index}>
-                <td>{item.column}</td>
-                <td>{item.type}</td>
+                <td>{column}</td>
+                <td>{type}</td>
               </tr>
             ))}
           </tbody>
