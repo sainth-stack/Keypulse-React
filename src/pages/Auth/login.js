@@ -111,7 +111,7 @@ export const Login = () => {
       const userId = response.data?.user?.id;
       if (userId) {
         try {
-          const res = await axios.get('http://34.244.163.169:4004/api/get_file_name', {
+          const res = await axios.get(`${API_URL}/get_file_name`, {
             headers: {
               'X-User-ID': userId,
             }
