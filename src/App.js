@@ -19,6 +19,7 @@ import UserSessions from "./pages/admin-screens/user-sessions"
 import AccessDenied from "./pages/access-denied";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SessionStatus from "./components/SessionStatus";
+import DataSource from "./pages/data-source";
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Route path="/missing-value" element={<MissingValues />} />
           <Route path="/ai-models" element={<AiAndModels />} />
           <Route path="/kpi" element={<Kpi />} />
+          <Route path="/data-source" element={<DataSource />} />
         </Route>
         
         {/* Admin screens also protected */}
