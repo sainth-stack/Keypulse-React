@@ -42,7 +42,7 @@ export const Login = () => {
   
       console.log(permissions); // Debugging: Check final permissions array
       localStorage.setItem('permissions', JSON.stringify(permissions)); // Store with a key
-      navigate('/');
+      navigate('/data-source');
       setLoading(false);
       return permissions; // Return permissions if needed elsewhere
     } catch (error) {

@@ -14,6 +14,20 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
     const [search, setSearch] = useState('')
     const [answers, setAnswers] = useState([]);
 
+    const handleSubmit = () => {
+        if (search.trim()) {
+            handleQuestionClick(search);
+            setSearch("");
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit();
+        }
+    };
+
     const handleGetAnswer = async (question, data) => {
         var formData = new FormData();
         formData.append('prompt', question);
@@ -38,9 +52,10 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                     return {
                         ...item,
                         view: "Text",
-                        answer: res?.data?.chart_response ? "" :res?.data?.text_output || res?.data?.text_pre_code_response,
-                        graph:res?.data?.chart_response,
-                        loading: false
+                        answer: res?.data?.chart_response ? "" : res?.data?.text_output || res?.data?.text_pre_code_response,
+                        graph: res?.data?.chart_response,
+                        loading: false,
+                        isHtml: true // Add flag to indicate HTML content
                     }
                 } else return item;
             })
@@ -51,7 +66,8 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                     return {
                         ...item,
                         answer: "No Data found",
-                        loading: false
+                        loading: false,
+                        isHtml: false
                     }
                 } else return item;
             })
@@ -133,21 +149,53 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                 {/* AI Response */}
                 <Box sx={{
                   alignSelf: "flex-start",
-                  maxWidth:item?.answer? "100%": "80%",
+                  maxWidth: item?.answer ? "100%" : "80%",
                   backgroundColor: "#fff",
                   padding: "12px",
-                  width:item?.answer? "80%":'100%',
+                  width: item?.answer ? "100%" : "80%",
                   borderRadius: "12px 12px 12px 0",
-                  // border: "1px solid #e0e0e0",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 }}>
-                  <AnswersChat2
-                    question={item.question}
-                    answer={item.answer}
-                    graph={item.graph}
-                    loading={item?.loading}
-                    type={item.view}
-                    name={"genbi"}
-                  />
+                  {item.loading ? (
+                    <CircularProgress size={20} />
+                  ) : (
+                    <>
+                      {item.answer && item.isHtml ? (
+                        <div 
+                          dangerouslySetInnerHTML={{ __html: item.answer }}
+                          style={{
+                            overflow: 'auto',
+                            maxHeight: '500px',
+                            '& table': {
+                              borderCollapse: 'collapse',
+                              width: '100%',
+                              marginBottom: '1rem'
+                            },
+                            '& th, & td': {
+                              border: '1px solid #ddd',
+                              padding: '8px',
+                              textAlign: 'left'
+                            },
+                            '& th': {
+                              backgroundColor: '#f5f5f5'
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div>{item.answer}</div>
+                      )}
+                      {item.graph && (
+                        <AnswersChat2
+                          question={item.question}
+                          answer={item.answer}
+                          graph={item.graph}
+                          loading={false}
+                          type={item.view}
+                          name={"genbi"}
+                        />
+                      )}
+                    </>
+                  )}
                 </Box>
               </div>
             ))}
@@ -163,6 +211,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
               fullWidth
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Type your message here..."
               variant="outlined"
               sx={{
@@ -175,12 +224,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
-                      onClick={() => {
-                        if (search.trim()) {
-                          handleQuestionClick(search);
-                          setSearch("");
-                        }
-                      }}
+                      onClick={handleSubmit}
                       sx={{
                         color: search ? "primary.main" : "#bbb"
                       }}

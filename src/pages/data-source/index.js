@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { API_URL } from "../../const";
 import { CircularProgress } from '@mui/material';
-import { FaCloudUploadAlt, FaTrashAlt, FaPlus } from "react-icons/fa";
+import { FaCloudUploadAlt, FaTrashAlt, FaPlus, FaCheck } from "react-icons/fa";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
@@ -14,13 +14,15 @@ export default function DataSource() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const [showFileExistsModal, setShowFileExistsModal] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [replaceLoading, setReplaceLoading] = useState(false);
-
+const userObj = localStorage.getItem('user');
+      const userId = userObj ? JSON.parse(userObj).id : null;
   // Fetch S3 files
   const fetchFiles = async () => {
     setLoading(true);
@@ -39,16 +41,35 @@ export default function DataSource() {
     }
   };
 
+  // Fetch currently selected file
+  const fetchSelectedFile = async () => {
+    try {
+      const userObj = localStorage.getItem('user');
+      const userId = userObj ? JSON.parse(userObj).id : null;
+      const res = await fetch(`${API_URL}/get_file_name`, {
+        headers: { 'X-User-ID': userId },
+      });
+      const data = await res.json();
+      if (data && data.file_name) {
+        setSelectedFile(data.file_name);
+        localStorage.setItem('fileName', data.file_name);
+      }
+    } catch (error) {
+      console.error('Error fetching selected file:', error);
+    }
+  };
+
   useEffect(() => {
     fetchFiles();
+    fetchSelectedFile();
   }, []);
 
   const checkFileExists = async (fileName) => {
-    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
     const formData = new FormData();
-    formData.append('file_name', nameWithoutExt);
+    formData.append('file_name', fileName);
     const response = await fetch(`${API_URL}/check_input_file_s3/`, {
       method: 'POST',
+      headers: { 'X-User-ID': userId },
       body: formData,
     });
     const data = await response.json();
@@ -81,8 +102,6 @@ export default function DataSource() {
     const formData = new FormData();
     formData.append('file', file, overrideName || file.name);
     try {
-      const userObj = localStorage.getItem('user');
-      const userId = userObj ? JSON.parse(userObj).id : null;
       const response = await fetch(`${API_URL}/file_upload/`, {
         method: 'POST',
         headers: { 'X-User-ID': userId },
@@ -204,6 +223,11 @@ export default function DataSource() {
         ) : (
           files.map((file, idx) => (
             <div className="file-card" key={file} tabIndex={0} onClick={() => handleFileSelect(file)}>
+              {selectedFile === file && (
+                <div className="selected-indicator">
+                  <FaCheck className="check-icon" />
+                </div>
+              )}
               <div className="thumbnail-wrapper">
                 <img src={thumbnail} alt="thumbnail" className="file-thumbnail" />
               </div>

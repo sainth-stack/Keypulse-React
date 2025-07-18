@@ -29,7 +29,6 @@ const Kpi = () => {
                 // Get user ID from localStorage
                 const user = JSON.parse(localStorage.getItem('user') || '{}');
                 const userId = user.id;
-
                 const defaultPrompt = "Generate 4 KPIs based on the dataset";
 
                 const response = await axios.post(`${API_URL}/kpi_process`, 

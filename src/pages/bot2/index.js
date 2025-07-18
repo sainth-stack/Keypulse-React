@@ -10,7 +10,7 @@ import { LoadingIndicator } from '../../components/loader';
 
 const Bot2 = () => {
   const [message, setMessage] = useState('');
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState(localStorage.getItem('fileName') || '');
   const [messageType, setMessageType] = useState('text');
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialFileProcessing, setIsInitialFileProcessing] = useState(false);
@@ -20,26 +20,14 @@ const Bot2 = () => {
   const [recentChats, setRecentChats] = useState([]);
   const [visualizationData, setVisualizationData] = useState(null);
 
-  // Callback function to handle file upload completion
-  const handleFileUploadComplete = async (uploadData) => {
-    // Reset chat messages to initial state
-    // setMessages([
-    //   { type: 'bot', content: 'Hello! How can I assist you today?' }
-    // ]);
-    
-    // Reset recent chats
-    setRecentChats([]);
-    
+  // Fetch and cache 'describe the data' response
+  const fetchDescribeData = async (fileName = null) => {
     setIsInitialFileProcessing(true);
-
-    // Get user ID from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = user.id;
-
     try {
       const formData = new FormData();
-      formData.append('prompt', 'describe the data');
-
+      formData.append('prompt', 'explain about the data');
       const response = await fetch(`${API_URL}/genai_bot`, {
         method: 'POST',
         headers: {
@@ -47,31 +35,72 @@ const Bot2 = () => {
         },
         body: formData,
       });
-
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-
       const data = await response.json();
-      
-      // Add the automatic data description to messages
-      setMessages(prev => [...prev, { 
-        type: 'bot', 
+      // Cache the result and file name
+      localStorage.setItem('describeDataCache', JSON.stringify(data));
+      if (fileName) {
+        localStorage.setItem('describeDataCacheFileName', fileName);
+      }
+      setMessages(prev => [...prev, {
+        type: 'bot',
         content: data?.chart_response ? "" : data?.text_output || data?.text_pre_code_response,
         plotsData: data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
         code: data?.code || "Not Found",
         data: data?.data ? JSON.parse(data?.data) : ""
       }]);
-
     } catch (error) {
       console.error('Error processing initial file:', error);
-      setMessages(prev => [...prev, { 
-        type: 'bot', 
+      setMessages(prev => [...prev, {
+        type: 'bot',
         content: 'File uploaded successfully! I encountered an issue describing the data, but you can ask me questions about it.',
         code: 'Not Found'
       }]);
     } finally {
       setIsInitialFileProcessing(false);
+    }
+  };
+
+  // On mount, show 'describe the data' response (from cache or API)
+  useEffect(() => {
+    const cached = localStorage.getItem('describeDataCache');
+    const cachedFileName = localStorage.getItem('describeDataCacheFileName');
+    console.log(file,cachedFileName,'cached');
+    const lastUploadedFileName = file ? file : null;
+    if (cached && cachedFileName && lastUploadedFileName && cachedFileName === lastUploadedFileName) {
+      try {
+        const data = JSON.parse(cached);
+        setMessages(prev => [...prev, {
+          type: 'bot',
+          content: data?.chart_response ? "" : data?.text_output || data?.text_pre_code_response,
+          plotsData: data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
+          code: data?.code || "Not Found",
+          data: data?.data ? JSON.parse(data?.data) : ""
+        }]);
+      } catch (e) {
+        fetchDescribeData(lastUploadedFileName);
+      }
+    } else {
+      fetchDescribeData(lastUploadedFileName);
+    }
+    // eslint-disable-next-line
+  }, [file]);
+
+  // Callback function to handle file upload completion
+  const handleFileUploadComplete = async (uploadData) => {
+    // Reset recent chats
+    setRecentChats([]);
+    // Invalidate cache and re-fetch with new file name
+    if (file && file.name) {
+      localStorage.removeItem('describeDataCache');
+      localStorage.removeItem('describeDataCacheFileName');
+      fetchDescribeData(file.name);
+    } else {
+      localStorage.removeItem('describeDataCache');
+      localStorage.removeItem('describeDataCacheFileName');
+      fetchDescribeData();
     }
   };
 
@@ -126,12 +155,11 @@ const Bot2 = () => {
     const formData = new FormData();
     formData.append('prompt', message);
 
-    // Get user ID from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = user.id;
 
     try {
-      setIsLoading(true); // Ensure loading starts before the request
+      setIsLoading(true); 
     
       const endpoint = `${API_URL}/genai_bot`;
       
@@ -148,7 +176,6 @@ const Bot2 = () => {
       }
     
       const data = await response.json();
-    console.log(data,'dsfsd')
       setMessages(prev => prev.map(msg => 
         msg.isLoading ? { ...msg, isLoading: false } : msg
       ).concat([{ 
@@ -182,14 +209,18 @@ const Bot2 = () => {
     
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
   const fileInputRef = useRef(null);
 
 
   const messagesEndRef = useRef(null);
 
-  useEffect(() => {
-    // scrollToBottom();
-  }, [messages]);
   
   return (
    <div>
@@ -234,7 +265,13 @@ const Bot2 = () => {
                   alignItems: msg.question ? "flex-end" : "flex-start", // Align content accordingly
                 }}
               >
-                {msg?.content && msg?.content}
+                {msg?.content ? (
+                  msg.type === "bot" ? (
+                    <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                  ) : (
+                    msg.content
+                  )
+                ) : null}
                 {(msg?.code && msg?.code !== "Not Found") && (
               <Collapse>
                   <Collapse.Panel header="Code" key="msg-code">
@@ -348,6 +385,7 @@ const Bot2 = () => {
               className="chat-input"
               value={message}
               onChange={handleMessageChange}
+              onKeyDown={handleKeyDown}
               placeholder="Ask something..."
             />
             <input
@@ -355,6 +393,7 @@ const Bot2 = () => {
               className="file-input"
               ref={fileInputRef}
               onChange={handleFileChange}
+              accept=".csv"
             />
           </div>
           <button type="submit" className="send-button" disabled={isLoading}>
@@ -370,11 +409,11 @@ const Bot2 = () => {
             )}
           </button>
         </form>
-        {file && (
+        {/* {file && (
             <div className="file-name">
               Selected file: {file.name}
             </div>
-          )}
+          )} */}
       </div>
     </div>
    </div>
