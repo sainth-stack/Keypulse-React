@@ -32,18 +32,18 @@ export default function Sidebar({ }) {
       show: hasOrgPermission
     },
     {
-      path: "/users",
-      name: "Users",
-      icon: <BiUser size={20} />,
-      requiredPermission: "users_Read",
-      show: hasUserPermission
-    },
-    {
       path: "/user-roles",
       name: "User Roles",
       icon: <RiShieldUserLine size={20} />,
       requiredPermission: "roles_Read",
       show: hasRolePermission
+    },
+    {
+      path: "/users",
+      name: "Users",
+      icon: <BiUser size={20} />,
+      requiredPermission: "users_Read",
+      show: hasUserPermission
     },
     {
       path: "/user-sessions",

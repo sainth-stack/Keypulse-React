@@ -111,7 +111,7 @@ const UserRoles = () => {
 
       const formData = new FormData();
       formData.append('roles', values.name);
-      formData.append('organization', user?.organization);
+      formData.append('organization', user?.organization?.organization_id);
       permissionsArray.forEach((perm) => {
         formData.append('permissions', perm);
       });
