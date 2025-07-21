@@ -20,6 +20,7 @@ import AccessDenied from "./pages/access-denied";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SessionStatus from "./components/SessionStatus";
 import DataSource from "./pages/data-source";
+import { ResetPassword } from "./pages/Auth/ResetPassword";
 
 function App() {
   return (
@@ -59,6 +60,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/access-denied" element={<AccessDenied />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
       
       {/* Session Status Display - only show on protected routes */}

@@ -10,6 +10,10 @@ import axios from 'axios'
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../const";
 import sessionManager from "../../utils/sessionManager";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Paper, InputAdornment } from '@mui/material';
+import { Email as EmailIcon } from '@mui/icons-material';
+import { toast } from 'react-toastify';
+import { OtpPopup } from "../../components/OTPPopup";
 
 export const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -17,7 +21,10 @@ export const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
-
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
 
 
   const fetchRoles = async (roles) => {
@@ -131,6 +138,23 @@ export const Login = () => {
     }
   };
 
+  const handleSendReset = async () => {
+    setResetLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('email', resetEmail);
+      await axios.post(`${API_URL}/send_otp`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setShowResetModal(false);
+      setShowOtpModal(true); // Show OTP modal
+    } catch (err) {
+      toast.error('Failed to send OTP');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="container-fluid row m-0 p-0 vh-100">
       <div className="col-md-6 col-xs-12 col-sm-12 text-center pt-lg-5 mt-lg-5">
@@ -181,11 +205,9 @@ export const Login = () => {
                 </div>
               </div>
               <div className="d-flex flex-row-reverse mb-4">
-                <Link to="#">
-                  <span className="fs-12 cursor-pointer">
-                    Forgot Password
-                  </span>
-                </Link>
+                <span className="fs-12 cursor-pointer text-primary" style={{textDecoration:'underline',cursor:"pointer"}} onClick={() => setShowResetModal(true)}>
+                  Forgot Password?
+                </span>
               </div>
               <button
                 className="font-weight-bold text-uppercase w-100 text-white border-0 login2"
@@ -200,10 +222,10 @@ export const Login = () => {
                 {loading ? "Logging in..." : 'Login'} {loading ? <LoadingIndicator size={"1"} /> : null}
               </button>
             </form>
-            <div className="account2 mt-2">Don't Have An Account?</div>
+            {/* <div className="account2 mt-2">Don't Have An Account?</div>
             <Link to="/register" className="text-decoration-none register2">
               <span>Register</span>
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>
@@ -219,6 +241,57 @@ export const Login = () => {
       <div style={{position:'fixed',bottom:20,width:'100%',textAlign:'center',color:'black',fontSize:'12px',fontWeight:'bold'}}>
         © All Rights Reserved, AI-PRIORI {new Date().getFullYear()}
       </div>
+      {/* Reset Password Modal */}
+      <Dialog open={showResetModal} onClose={() => setShowResetModal(false)} maxWidth="xs" fullWidth PaperProps={{
+        style: { borderRadius: 20, boxShadow: '0 8px 32px rgba(60,60,60,0.18)' }
+      }}>
+        <Paper elevation={0} style={{ borderRadius: 20, background: '#f8fafc' }}>
+          <DialogTitle style={{textAlign:'center', fontWeight:700, fontSize:22, letterSpacing:0.5, paddingBottom:0}}>Reset Password</DialogTitle>
+          <DialogContent style={{paddingTop:8, paddingBottom:0}}>
+            <Box mb={2} color="#555" fontSize={15} textAlign="center">
+              Enter your email address and we'll send you a link to reset your password.
+            </Box>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Email Address"
+              type="email"
+              fullWidth
+              variant="filled"
+              value={resetEmail}
+              onChange={e => setResetEmail(e.target.value)}
+              disabled={resetLoading}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailIcon style={{ color: '#466657' }} />
+                  </InputAdornment>
+                ),
+                style: { borderRadius: 12, background: '#fff' }
+              }}
+              InputLabelProps={{ style: { fontWeight: 500, color: '#466657' } }}
+            />
+          </DialogContent>
+          <DialogActions style={{justifyContent:'space-between', padding:'20px 28px 24px 28px'}}>
+            <Button onClick={() => setShowResetModal(false)} disabled={resetLoading} style={{borderRadius:40, minWidth:100, fontWeight:600, color:'#466657', background:'#e8eaf6'}}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendReset} disabled={!resetEmail || resetLoading} variant="contained" style={{background:'#466657', color:'#fff', borderRadius:40, minWidth:140, fontWeight:600, boxShadow:'0 2px 8px rgba(70,102,87,0.08)'}}>
+              {resetLoading ? <span style={{display:'flex',alignItems:'center'}}><span className="spinner-border spinner-border-sm" style={{marginRight:8}}></span>Sending...</span> : 'Send Link'}
+            </Button>
+          </DialogActions>
+        </Paper>
+      </Dialog>
+      {showOtpModal && (
+        <OtpPopup
+          email={resetEmail}
+          onClose={() => setShowOtpModal(false)}
+          onSuccess={() => {
+            setShowOtpModal(false);
+            navigate(`/reset-password?email=${encodeURIComponent(resetEmail)}`);
+          }}
+        />
+      )}
     </div>
   );
 };

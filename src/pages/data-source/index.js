@@ -21,6 +21,7 @@ export default function DataSource() {
   const [pendingFile, setPendingFile] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [replaceLoading, setReplaceLoading] = useState(false);
+  const [deletingFile, setDeletingFile] = useState(null);
 const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
   // Fetch S3 files
@@ -164,9 +165,35 @@ const userObj = localStorage.getItem('user');
   };
 
   // Delete file (API endpoint needed)
-  const handleDelete = async (fileName) => {
-    // TODO: Implement delete API call if available
-    toast.info('Delete functionality not implemented');
+  const handleDelete = async (fileName, e) => {
+    e.stopPropagation(); // Prevent file select
+    setDeletingFile(fileName);
+    try {
+      const userObj = localStorage.getItem('user');
+      const userId = userObj ? JSON.parse(userObj).id : null;
+      const formData = new FormData();
+      formData.append('file_name', fileName);
+      const response = await fetch(`${API_URL}/delete_file/`, {
+        method: 'POST',
+        headers: { 'X-User-ID': userId },
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.status) {
+        toast.success('File deleted successfully!');
+        fetchFiles();
+        if (selectedFile === fileName) {
+          setSelectedFile(null);
+          localStorage.removeItem('fileName');
+        }
+      } else {
+        toast.error(data.message || 'Failed to delete file.');
+      }
+    } catch (error) {
+      toast.error('Failed to delete file. Please try again.');
+    } finally {
+      setDeletingFile(null);
+    }
   };
 
   return (
@@ -222,7 +249,7 @@ const userObj = localStorage.getItem('user');
           </div>
         ) : (
           files.map((file, idx) => (
-            <div className="file-card" key={file} tabIndex={0} onClick={() => handleFileSelect(file)}>
+            <div className="file-card" key={file} tabIndex={0} onClick={() => handleFileSelect(file)} style={{ position: 'relative' }}>
               {selectedFile === file && (
                 <div className="selected-indicator">
                   <FaCheck className="check-icon" />
@@ -232,6 +259,36 @@ const userObj = localStorage.getItem('user');
                 <img src={thumbnail} alt="thumbnail" className="file-thumbnail" />
               </div>
               <div className="file-name">{file}</div>
+              {deletingFile === file ? (
+                <CircularProgress size={22} style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 8,
+                  color: '#e74c3c',
+                  background: 'white',
+                  borderRadius: '50%',
+                  padding: 4,
+                  fontSize: 22,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.12)'
+                }} />
+              ) : (
+                <FaTrashAlt
+                  className="delete-icon"
+                  style={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    color: '#e74c3c',
+                    background: 'white',
+                    borderRadius: '50%',
+                    padding: 4,
+                    fontSize: 22,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.12)'
+                  }}
+                  title="Delete file"
+                  onClick={e => handleDelete(file, e)}
+                />
+              )}
             </div>
           ))
         )}

@@ -12,6 +12,7 @@ import {
   Select,
 } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { EyeInvisibleOutlined, EyeTwoTone, ReloadOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { isSuperAdmin } from '../../../utils';
 import { API_URL } from '../../../const';
@@ -26,6 +27,7 @@ const UsersManager = () => {
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
+  const [autoPassword, setAutoPassword] = useState("");
 
   // Ref to track if initial load is done
   const initialLoadRef = useRef(false);
@@ -211,6 +213,15 @@ const UsersManager = () => {
       message.error(error.response?.data?.message || 'Delete failed');
     }
   };
+
+  function generatePassword(length = 12) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+';
+    let pass = '';
+    for (let i = 0; i < length; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass;
+  }
 
   // Memoized table columns
   const columns = useMemo(() => [
@@ -406,7 +417,27 @@ const UsersManager = () => {
                   label="Password"
                   rules={[{ required: true, message: 'Please input password!' }]}
                 >
-                  <Input.Password placeholder="Enter password" />
+                  <Input.Password
+                    placeholder="Enter password"
+                    iconRender={visible => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+                    addonAfter={
+                      <Button
+                        icon={<ReloadOutlined />}
+                        size="small"
+                        style={{ borderRadius: 8, background: '#466657', color: '#fff', fontWeight: 600 }}
+                        onClick={() => {
+                          const pwd = generatePassword();
+                          setAutoPassword(pwd);
+                          form.setFieldsValue({ password: pwd });
+                        }}
+                      >
+                        Autogenerate
+                      </Button>
+                    }
+                    value={autoPassword}
+                    onChange={e => setAutoPassword(e.target.value)}
+                    style={{ borderRadius: 12, background: '#fff' }}
+                  />
                 </Form.Item>
               )}
 
