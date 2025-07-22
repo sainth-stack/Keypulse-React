@@ -70,9 +70,18 @@ export const OtpPopup = ({ email, onClose, onSuccess, loading }) => {
 
       const data = await response.json();
 
-      if (response.ok && data.status === true) {
+      if (response.ok && (data.status === true || data.status === 'success')) {
         // OTP verification successful
-        if (onSuccess) onSuccess();
+        // Navigate to reset-password with email and user_id
+        if (data.user_id && data.user_email) {
+          navigate(`/reset-password?email=${encodeURIComponent(data.user_email)}&user_id=${encodeURIComponent(data.user_id)}`);
+        } else if (data.email && data.user_id) {
+          navigate(`/reset-password?email=${encodeURIComponent(data.email)}&user_id=${encodeURIComponent(data.user_id)}`);
+        } else if (email) {
+          navigate(`/reset-password?email=${encodeURIComponent(email)}`);
+        }
+        // If onSuccess is used elsewhere, you can keep it optionally:
+        // if (onSuccess) onSuccess();
       } else {
         setError(data.message || "OTP verification failed");
       }

@@ -49,6 +49,32 @@ export const Login = () => {
   
       console.log(permissions); // Debugging: Check final permissions array
       localStorage.setItem('permissions', JSON.stringify(permissions)); // Store with a key
+      // --- Begin: Check for application permissions and redirect accordingly ---
+      // Define application permissions (should match Sidebar logic)
+      const appPermissions = [
+        'home_Read',
+        'data_analysis_Read',
+        'visualizations_Read',
+        'missing_value_treatment_Read',
+        'ai_models_Read',
+        'kpi_Read',
+      ];
+      const adminPaths = [
+        { path: '/tenants', prefix: 'tenant_' },
+        { path: '/organizations', prefix: 'organization_' },
+        { path: '/users', prefix: 'users_' },
+        { path: '/roles', prefix: 'roles_' },
+      ];
+      const hasAppPermission = permissions.some(p => appPermissions.includes(p));
+      if (!hasAppPermission) {
+        const adminPath = adminPaths.find(ap => permissions.some(p => p.startsWith(ap.prefix)));
+        if (adminPath) {
+          navigate(adminPath.path);
+        } else {
+          navigate('/access-denied');
+        }
+        return permissions;
+      }
       navigate('/data-source');
       setLoading(false);
       return permissions; // Return permissions if needed elsewhere
@@ -64,8 +90,10 @@ export const Login = () => {
     event.preventDefault();
     
     const formData = new URLSearchParams();
-    formData.append('email', email);
-    formData.append('password', password);
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+    formData.append('email', trimmedEmail);
+    formData.append('password', trimmedPassword);
 
     try {
       const response = await axios.post(`${API_URL}/login`, formData, {
@@ -77,6 +105,11 @@ export const Login = () => {
       console.log('Login Response:', response.data); // Debug: Check what we get from API
       
       setLoading(false);
+      // Check for first-time login (last_login is null or empty)
+      if (!response.data?.user?.last_login) {
+        navigate(`/reset-password?email=${encodeURIComponent(response.data?.user?.email)}&user_id=${encodeURIComponent(response.data?.user?.id)}&first_time=true`);
+        return;
+      }
       fetchRoles(response.data?.user?.role);
       localStorage.setItem('user', JSON.stringify(response.data?.user));
       localStorage.setItem('token', response.data?.user?.username);

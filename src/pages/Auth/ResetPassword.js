@@ -20,6 +20,8 @@ export const ResetPassword = () => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const email = params.get("email");
+  const user_id = params.get("user_id");
+  const firstTime = params.get("first_time") === 'true';
 
   const handleReset = async (e) => {
     e.preventDefault();
@@ -30,12 +32,15 @@ export const ResetPassword = () => {
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append('email', email);
       formData.append('password', password);
-      await axios.post(`${API_URL}/users/update_password`, formData, {
+      await axios.post(`${API_URL}/users/${user_id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      toast.success("Password reset successfully!");
+      if (firstTime) {
+        toast.success("Password set successfully! Please login with your new password.");
+      } else {
+        toast.success("Password reset successfully!");
+      }
       navigate('/login');
     } catch (err) {
       toast.error("Failed to reset password");
@@ -49,9 +54,11 @@ export const ResetPassword = () => {
       <Paper elevation={4} sx={{ borderRadius: 5, p: { xs: 2, sm: 4 }, maxWidth: 420, width: '100%', mx: 2 }}>
         <Box textAlign="center" mb={2}>
           <img className="logo1" src={Logo} alt="Logo" width={80} height={80} style={{marginBottom:8}}/>
-          <Typography variant="h5" fontWeight={700} mb={1} color="#466657">Reset Password</Typography>
+          <Typography variant="h5" fontWeight={700} mb={1} color="#466657">
+            {firstTime ? 'Set Your Password' : 'Reset Password'}
+          </Typography>
           <Typography variant="body2" color="#555" mb={2}>
-            Enter your new password below.
+            {firstTime ? 'Welcome! Please set your password to activate your account.' : 'Enter your new password below.'}
           </Typography>
         </Box>
         <form onSubmit={handleReset}>
