@@ -4,14 +4,14 @@ import './index.css';
 import { API_URL } from '../../const';
 import Plot from 'react-plotly.js';
 import { LoadingIndicator } from '../../components/loader';
+import { Tabs, Tab, Box, Paper } from '@mui/material';
 
 const DataAnalysis = () => {
   const location = useLocation();
   const fileData = JSON.parse(localStorage.getItem('fileData'));
 
-  const [analysisData, setAnalysisData] = useState(fileData);
-  const [apiData, setApiData] = useState(null);
-  const [plotData, setPlotData] = useState(null);
+  const [allFilesData, setAllFilesData] = useState(null); // Holds the 'data' object from API
+  const [selectedFile, setSelectedFile] = useState(null); // Currently selected file key
   const [loading, setLoading] = useState(false);
   
   // Get data from localStorage instead of location state
@@ -25,18 +25,20 @@ const DataAnalysis = () => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const userId = user.id;
 
-        const [dataResponse] = await Promise.all([
-          fetch(`${API_URL}/dataprocess`, {
-            headers: {
-              'X-User-ID': userId,
-            },
-          })    
-            ]);
-        
+        const dataResponse = await fetch(`${API_URL}/dataprocess`, {
+          headers: {
+            'X-User-ID': userId,
+          },
+        });
         const data = await dataResponse.json();
-        const plots = {...data?.barplots, ...data?.pieplots, ...data?.scatterplots, ...data?.boxplots};
-        setApiData(data);
-        setPlotData(plots);
+        if (data && data.data && typeof data.data === 'object') {
+          setAllFilesData(data.data);
+          // Default to first file if available
+          const fileKeys = Object.keys(data.data);
+          if (fileKeys.length > 0) {
+            setSelectedFile(fileKeys[0]);
+          }
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -46,18 +48,19 @@ const DataAnalysis = () => {
 
     fetchData();
   }, []);
-  const renderSummaryStats = () => {
-    if (!apiData) return null;
-    
-    const stats = [
-      { label: 'Total Records', value: apiData.nof_rows },
-      { label: 'Number of Columns', value: apiData.nof_columns },
-      { label: 'Time Stamp Data', value: apiData.timestamp },
-      // { label: 'Missing Records', value: apiData.missing_data },
-      { label: 'Stationary', value: apiData.stationary },
-      { label: 'Sentiment', value: apiData.sentiment },
-    ];
 
+  // Helper to get current file's data
+  const currentFileData = selectedFile && allFilesData ? allFilesData[selectedFile] : null;
+
+  const renderSummaryStats = () => {
+    if (!currentFileData) return null;
+    const stats = [
+      { label: 'Total Records', value: currentFileData.nof_rows },
+      { label: 'Number of Columns', value: currentFileData.nof_columns },
+      { label: 'Time Stamp Data', value: currentFileData.timestamp },
+      { label: 'Stationary', value: currentFileData.stationary },
+      { label: 'Sentiment', value: currentFileData.sentiment },
+    ];
     return (
       <div className="stats-grid">
         {stats.map((stat, index) => (
@@ -86,78 +89,62 @@ const DataAnalysis = () => {
   );
 
   const renderTable = () => {
-    // Check if data exists in apiData first, then fallback to analysisData
-    let dataSource = null;
-    
-    if (apiData?.data && apiData.data !== 'No data') {
-      dataSource = apiData.data;
-    } else if (analysisData?.data && analysisData.data !== 'No data') {
-      dataSource = analysisData.data;
-    }
-    
-    if (!dataSource) {
+    if (!currentFileData?.data || currentFileData.data === 'No data') {
       return <p>No data available</p>;
     }
-    
+    let parsedData;
     try {
-      // Handle both string and object data
-      const parsedData = typeof dataSource === 'string' ? JSON.parse(dataSource) : dataSource;
-      const headers = Object.keys(parsedData);
-      
-      if (headers.length === 0) {
-        return <p>No data available</p>;
-      }
-      
-      // Get the maximum number of rows from any column
-      const rowCount = Math.max(...headers.map(header => 
-        parsedData[header] && typeof parsedData[header] === 'object' 
-          ? Object.keys(parsedData[header]).length 
-          : 0
-      ));
-      
-      if (rowCount === 0) {
-        return <p>No data available</p>;
-      }
-      
-      return (
-        <div className="table-container">
-          <table className="modern-table">
-            <thead>
-              <tr>
-                {headers.map((header, index) => (
-                  <th key={index}>{header}</th>
+      parsedData = typeof currentFileData.data === 'string' ? JSON.parse(currentFileData.data) : currentFileData.data;
+    } catch (error) {
+      return <p>Error parsing data</p>;
+    }
+    const headers = Object.keys(parsedData);
+    if (headers.length === 0) return <p>No data available</p>;
+    const rowCount = Math.max(...headers.map(header =>
+      parsedData[header] && typeof parsedData[header] === 'object'
+        ? Object.keys(parsedData[header]).length
+        : 0
+    ));
+    if (rowCount === 0) return <p>No data available</p>;
+    return (
+      <div className="table-container">
+        <table className="modern-table">
+          <thead>
+            <tr>
+              {headers.map((header, index) => (
+                <th key={index}>{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[...Array(Math.min(rowCount, 100))].map((_, rowIndex) => (
+              <tr key={rowIndex}>
+                {headers.map((header, colIndex) => (
+                  <td key={colIndex}>
+                    {parsedData[header] && parsedData[header][rowIndex] !== undefined
+                      ? parsedData[header][rowIndex]
+                      : 'N/A'}
+                  </td>
                 ))}
               </tr>
-            </thead>
-            <tbody>
-              {[...Array(Math.min(rowCount, 100))].map((_, rowIndex) => (
-                <tr key={rowIndex}>
-                  {headers.map((header, colIndex) => (
-                    <td key={colIndex}>
-                      {parsedData[header] && parsedData[header][rowIndex] !== undefined 
-                        ? parsedData[header][rowIndex] 
-                        : 'N/A'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {rowCount > 100 && (
-            <p className="table-note">Showing first 100 rows of {rowCount} total rows</p>
-          )}
-        </div>
-      );
-    } catch (error) {
-      console.error('Error parsing data:', error);
-      return <p>Error loading data</p>;
-    }
+            ))}
+          </tbody>
+        </table>
+        {rowCount > 100 && (
+          <p className="table-note">Showing first 100 rows of {rowCount} total rows</p>
+        )}
+      </div>
+    );
   };
 
   const renderMissingValueAnalysis = () => {
-    if (!apiData?.missingvalue || apiData?.missingvalue == 'No data' ) return <p>No data available</p>;
-    
-    const missingData = JSON.parse(apiData.missingvalue);
+    if (!currentFileData?.missingvalue || currentFileData.missingvalue === 'No data') return <p>No data available</p>;
+    let missingData;
+    try {
+      missingData = JSON.parse(currentFileData.missingvalue);
+    } catch (e) {
+      return <p>Error parsing missing value data</p>;
+    }
     return (
       <div className="table-container">
         <table className="modern-table">
@@ -181,20 +168,19 @@ const DataAnalysis = () => {
   };
 
   const renderNumericalAnalysis = () => {
-    if (!apiData?.numdf || apiData.numdf == 'No data') return <p>No data available</p>;
-
-    const numData = JSON.parse(apiData.numdf);
-    
-    // Check if numData is an array or object
+    if (!currentFileData?.numdf || currentFileData.numdf === 'No data') return <p>No data available</p>;
+    let numData;
+    try {
+      numData = JSON.parse(currentFileData.numdf);
+    } catch (e) {
+      return <p>Error parsing numerical data</p>;
+    }
     if (!Array.isArray(numData) || numData.length === 0) {
       return <p>No numerical data available</p>;
     }
-
-    // Extract column names and statistical metrics
     const columnNames = numData.map(item => item.ColumnName || 'Unknown Column');
     const metricKeys = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max'];
     const metricLabels = ['Count', 'Mean', 'Std Dev', 'Min', '25th Percentile', 'Median', '75th Percentile', 'Max'];
-    
     return (
       <div className="table-container">
         <table className="modern-table">
@@ -215,8 +201,8 @@ const DataAnalysis = () => {
                   const numericValue = Number(value);
                   return (
                     <td key={columnIndex}>
-                      {isNaN(numericValue) || value === null || value === undefined 
-                        ? 'N/A' 
+                      {isNaN(numericValue) || value === null || value === undefined
+                        ? 'N/A'
                         : numericValue.toFixed(2)
                       }
                     </td>
@@ -231,39 +217,34 @@ const DataAnalysis = () => {
   };
 
   const renderCategoricalAnalysis = () => {
-    // Use user-friendly data types
-    const dataTypes = {
-      "Purchasing Document": "Number",
-      "Purch. Doc. Category": "Text",
-      "Purchase Document Category - Short Description": "Text",
-      "Purchasing Doc. Type": "Text",
-      "Purchasing Doc. Type Description": "Text",
-      "Status": "Text",
-      "Created On": "Date",
-      "Supplier": "Number",
-      "Supplier Name": "Text",
-      "Purch. organization": "Text",
-      "Purchasing Group": "Text",
-      "Currency": "Text",
-      "Customer": "Text",
-      "Customer Name": "Text",
-      "Net Value": "Number"
-    };
-
+    // If you want to use actual categorical data from the API, parse and render it here
+    // For now, fallback to a placeholder if not present
+    if (!currentFileData?.catdf || currentFileData.catdf === 'No data') return <p>No data available</p>;
+    let catData;
+    try {
+      catData = JSON.parse(currentFileData.catdf);
+    } catch (e) {
+      return <p>Error parsing categorical data</p>;
+    }
+    if (!Array.isArray(catData) || catData.length === 0) {
+      return <p>No categorical data available</p>;
+    }
     return (
       <div className="table-container">
         <table className="modern-table">
           <thead>
             <tr>
-              <th>Column Name</th>
-              <th>Data Type</th>
+              {Object.keys(catData[0]).map((col, idx) => (
+                <th key={idx}>{col}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {Object.entries(dataTypes).map(([column, type], index) => (
-              <tr key={index}>
-                <td>{column}</td>
-                <td>{type}</td>
+            {catData.map((row, idx) => (
+              <tr key={idx}>
+                {Object.values(row).map((val, i) => (
+                  <td key={i}>{val}</td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -272,43 +253,8 @@ const DataAnalysis = () => {
     );
   };
 
-  const renderPlots = () => {
-    if (!plotData) return null;
-
-    return Object.entries(plotData).map(([key, value]) => {
-      const graphData = JSON.parse(value);
-      return (
-        <div key={key} className="accordion-item">
-          <h2 className="accordion-header">
-            <button 
-              className="accordion-button" 
-              type="button" 
-              data-bs-toggle="collapse" 
-              data-bs-target={`#plot-${key.replace(/\s+/g, '')}`}
-            >
-              {key}
-            </button>
-          </h2>
-          <div id={`plot-${key.replace(/\s+/g, '')}`} className="accordion-collapse collapse show">
-            <div className="accordion-body">
-              <Plot
-                data={graphData?.data}
-                layout={graphData?.layout}
-                config={{ responsive: true }}
-                style={{
-                  width: "100%",
-                  height: "60vh",
-                  padding: "15px",
-                  backgroundColor: "#ffffff",
-                  borderRadius: "12px",
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      );
-    });
-  };
+  // If you want to render plots, adapt this function to your new API structure
+  // const renderPlots = () => { ... }
 
   // if (!analysisData) {
   //   return (
@@ -323,6 +269,35 @@ const DataAnalysis = () => {
       {loading && <LoadingIndicator message="Loading analysis data..." />}
       
       <h1 className="analysis-title">Data Analysis</h1>
+      {/* Tab panel for multiple files */}
+      {allFilesData && Object.keys(allFilesData).length > 1 && (
+        <Paper elevation={2} style={{ margin: '24px 0 32px 0', borderRadius: 12 }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8f9fa', borderRadius: 2 }}>
+            <Tabs
+              value={selectedFile}
+              onChange={(_, newValue) => setSelectedFile(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
+              aria-label="File Tabs"
+              sx={{ minHeight: 48 }}
+            >
+              {Object.keys(allFilesData).map((fileKey) => (
+                <Tab
+                  key={fileKey}
+                  value={fileKey}
+                  label={fileKey}
+                  sx={{
+                    fontWeight: selectedFile === fileKey ? 700 : 400,
+                    minHeight: 48,
+                    textTransform: 'none',
+                    fontSize: 16,
+                  }}
+                />
+              ))}
+            </Tabs>
+          </Box>
+        </Paper>
+      )}
       {/* <div className="file-info">
         <h2>Analyzing: {fileName}</h2>
       </div> */}

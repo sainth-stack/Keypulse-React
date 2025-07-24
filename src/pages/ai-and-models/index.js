@@ -2,12 +2,11 @@ import { API_URL } from '../../const';
 import './index.css';
 import { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
+import { Tabs, Tab, Box } from '@mui/material';
 
 const AiAndModels = () => {
     const [response, setResponse] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [columns, setColumns] = useState([]);
-    const [columnsLoading, setColumnsLoading] = useState(false);
     const [formData, setFormData] = useState({
         model: 'Prediction', // Default set to Prediction
         col: '',
@@ -16,10 +15,18 @@ const AiAndModels = () => {
     });
     const [rfInputs, setRfInputs] = useState({});
 
-    // Fetch columns from API
-    const fetchColumns = async () => {
-        setColumnsLoading(true);
-        try {
+    // Inside your main component (e.g., AiAndModels)
+    const [fileKeys, setFileKeys] = useState([]);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [filesData, setFilesData] = useState({});
+
+    // Columns for the selected file
+    const columns = selectedFile && filesData[selectedFile] ? filesData[selectedFile] : [];
+    const columnsLoading = !selectedFile || !filesData[selectedFile];
+
+    // Fetch models API and parse files
+    useEffect(() => {
+        const fetchModels = async () => {
             // Get user ID from localStorage
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id;
@@ -33,23 +40,26 @@ const AiAndModels = () => {
             });
 
             if (response.ok) {
-                const data = await response.json();
-                setColumns(data.columns || []);
+                const result = await response.json();
+                if (result.files && typeof result.files === 'object') {
+                    const keys = Object.keys(result.files);
+                    setFileKeys(keys);
+                    setFilesData(result.files);
+                    // Default to file name in use (from localStorage or props)
+                    let user = JSON.parse(localStorage.getItem('user') || '{}');
+                    let currentFileName = user.fileName || localStorage.getItem('fileName') || keys[0];
+                    // Find closest match (case-insensitive)
+                    let defaultKey = keys.find(k => k.toLowerCase() === currentFileName?.toLowerCase()) || keys[0];
+                    setSelectedFile(defaultKey);
+                }
             } else {
-                console.error('Failed to fetch columns');
-                setColumns([]);
+                console.error('Failed to fetch files');
+                setFileKeys([]);
+                setFilesData({});
+                setSelectedFile(null);
             }
-        } catch (error) {
-            console.error('Error fetching columns:', error);
-            setColumns([]);
-        } finally {
-            setColumnsLoading(false);
-        }
-    };
-
-    // Fetch columns on component mount
-    useEffect(() => {
-        fetchColumns();
+        };
+        fetchModels();
     }, []);
 
     const models = [
@@ -116,7 +126,8 @@ const AiAndModels = () => {
                     model: modelMapping[formData.model],
                     col: formData.col,
                     frequency: formData.frequency,
-                    tenure: formData.tenure
+                    tenure: formData.tenure,
+                    file_name: selectedFile
                 }),
             });
 
@@ -352,6 +363,25 @@ const AiAndModels = () => {
         <div className="modern-container">
             <h1 className="modern-title">AI and Models Analysis</h1>
             
+            {/* Tabs for multiple files */}
+            {fileKeys.length > 1 && (
+                <Box sx={{ borderBottom: 1, borderColor: 'divider', margin: '0 0 24px 0', background: '#fff', borderRadius: '8px 8px 0 0' }}>
+                    <Tabs
+                        value={selectedFile}
+                        onChange={(e, newValue) => setSelectedFile(newValue)}
+                        indicatorColor="primary"
+                        textColor="primary"
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        aria-label="AI Models File Tabs"
+                    >
+                        {fileKeys.map((key) => (
+                            <Tab key={key} label={key.replace(/_/g, ' ')} value={key} sx={{ fontWeight: 600, fontSize: '1rem', textTransform: 'none' }} />
+                        ))}
+                    </Tabs>
+                </Box>
+            )}
+
             <form onSubmit={handleSubmit} className="modern-form">
                 <div className="tab-panel">
                     <div className="tabs">

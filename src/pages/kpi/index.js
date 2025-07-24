@@ -107,11 +107,12 @@ const Kpi = () => {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id;
 
+            // Send as JSON with kpi_data object
             const response = await axios.post(`${API_URL}/generate_code`,
-                `kpi_names=${encodeURIComponent(kpiName)}`,
+                { kpi_data: kpi },
                 {
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Type': 'application/json',
                         'X-User-ID': userId,
                     }
                 }
@@ -217,7 +218,11 @@ const Kpi = () => {
                             <div className="kpi-details">
                                 <div className="kpi-detail-row">
                                     <span className="detail-label">Column:</span>
-                                    <span className="detail-value">{kpi.Column}</span>
+                                    <span className="detail-value">
+                                        {Array.isArray(kpi["Columns used"]) && kpi["Columns used"].length > 0
+                                            ? kpi["Columns used"].join(', ')
+                                            : (kpi.Column || kpi["Column"] || "-")}
+                                    </span>
                                 </div>
                                 <div className="kpi-detail-row">
                                     <span className="detail-label">Logic:</span>
@@ -239,13 +244,13 @@ const Kpi = () => {
                                 </div>
                             ) : (
                                 <>
-                                    {item?.plots && Object.entries(item.plots).map(([plotName, plotData]) => (
-                                        <div key={plotName} className="plot-container">
-                                            <h3>{plotName}</h3>
+                                    {/* Render Plotly chart if available */}
+                                    {item?.plots && item.plots.data && item.plots.layout && (
+                                        <div className="plot-container">
                                             <Plot
-                                                data={plotData.data}
+                                                data={item.plots.data}
                                                 layout={{
-                                                    ...plotData.layout,
+                                                    ...item.plots.layout,
                                                     autosize: true,
                                                     margin: { l: 50, r: 50, t: 50, b: 50 }
                                                 }}
@@ -259,21 +264,28 @@ const Kpi = () => {
                                                 }}
                                             />
                                         </div>
-                                    ))}
-                                    {item?.code && Object.entries(item.code).map(([plotName, plotData]) => (
+                                    )}
+                                    {/* Render code block if available */}
+                                    {item?.code && (
                                         <div className="code-block-container">
                                             <button 
                                                 className="copy-button"
-                                                onClick={() => handleCopyCode(plotData)}
+                                                onClick={() => navigator.clipboard.writeText(
+                                                    typeof item.code === 'string' ? item.code : JSON.stringify(item.code, null, 2)
+                                                )}
                                             >
                                                 <CopyOutlined /> Copy
                                             </button>
-                                            <div 
-                                                className="code-block"
-                                                dangerouslySetInnerHTML={{ __html: plotData }}
-                                            />
+                                            {/* If code is HTML, render as HTML, else as pre/code */}
+                                            {typeof item.code === 'string' && item.code.trim().startsWith('<') ? (
+                                                <div className="code-block" dangerouslySetInnerHTML={{ __html: item.code }} />
+                                            ) : (
+                                                <pre className="code-block">
+                                                    <code>{typeof item.code === 'string' ? item.code : JSON.stringify(item.code, null, 2)}</code>
+                                                </pre>
+                                            )}
                                         </div>
-                                    ))}
+                                    )}
                                 </>
                             )}
                         </Collapse.Panel>

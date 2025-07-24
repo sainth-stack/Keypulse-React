@@ -8,7 +8,9 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
-  Fade
+  Fade,
+  Tabs,
+  Tab
 } from "@mui/material";
 import { 
   Refresh as RefreshIcon,
@@ -24,6 +26,8 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [fileName, setFileName] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileKeys, setFileKeys] = useState([]);
   const hasFetched = useRef(false);
 
   // Cache key for localStorage
@@ -82,6 +86,18 @@ const Dashboard = () => {
     localStorage.removeItem(CACHE_EXPIRY_KEY);
   };
 
+  // Refactor: Parse API response for multi-file support
+  const parseApiData = (apiData) => {
+    if (!apiData) return { fileKeys: [], fileData: {} };
+    // If new structure: { data: { file1: {...}, file2: {...} } }
+    if (apiData.data && typeof apiData.data === 'object') {
+      const keys = Object.keys(apiData.data);
+      return { fileKeys: keys, fileData: apiData.data };
+    }
+    // Fallback: treat as single file
+    return { fileKeys: ["default"], fileData: { default: apiData } };
+  };
+
   const fetchData = async (forceRefresh = false) => {
     if (loading) return;
     
@@ -93,7 +109,10 @@ const Dashboard = () => {
       if (!forceRefresh) {
         const cachedData = getCachedData();
         if (cachedData) {
-          setData(cachedData);
+          const { fileKeys, fileData } = parseApiData(cachedData);
+          setData(fileData);
+          setFileKeys(fileKeys);
+          setSelectedFile(fileKeys[0] || null);
           setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
           setLoading(false);
           return;
@@ -115,25 +134,12 @@ const Dashboard = () => {
       }
 
       const result = await response.json();
+      const { fileKeys, fileData } = parseApiData(result);
       
-      // Handle new API structure - check if plots are in the new format
-      let plots;
-      if (result?.plots) {
-        // New structure: result.plots contains plot objects with description and plot_data
-        plots = result.plots;
-      } else {
-        // Old structure: plots are spread across different categories
-        plots = { 
-          ...result?.barplots, 
-          ...result?.pieplots, 
-          ...result?.scatterplots, 
-          ...result?.boxplots,
-          ...result?.additionalplots 
-        };
-      }
-      
-      setData(plots);
-      setCachedData(plots);
+      setData(fileData);
+      setFileKeys(fileKeys);
+      setSelectedFile(fileKeys[0] || null);
+      setCachedData(result);
       setLastRefresh(new Date());
       
     } catch (error) {
@@ -142,7 +148,10 @@ const Dashboard = () => {
       // Try to use cached data as fallback
       const cachedData = getCachedData();
       if (cachedData) {
-        setData(cachedData);
+        const { fileKeys, fileData } = parseApiData(cachedData);
+        setData(fileData);
+        setFileKeys(fileKeys);
+        setSelectedFile(fileKeys[0] || null);
         setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
       }
     } finally {
@@ -169,10 +178,10 @@ const Dashboard = () => {
     };
   }, []);
 
-  const parsedData = data
-    ? Object.entries(data).map(([title, plotObject]) => {
+  // Parse plots for the selected file
+  const parsedData = (data && selectedFile && data[selectedFile] && data[selectedFile].plots)
+    ? Object.entries(data[selectedFile].plots).map(([title, plotObject]) => {
         try {
-          // Handle new API structure where each plot has description and plot_data
           if (plotObject && typeof plotObject === 'object' && plotObject.plot_data) {
             return {
               title,
@@ -180,7 +189,6 @@ const Dashboard = () => {
               graphData: JSON.parse(plotObject.plot_data),
             };
           } else {
-            // Handle old structure where plotObject is the JSON string directly
             return {
               title,
               graphData: JSON.parse(plotObject),
@@ -195,7 +203,7 @@ const Dashboard = () => {
             error: true,
           };
         }
-      }).filter(item => item.graphData !== null) // Filter out failed parses
+      }).filter(item => item.graphData !== null)
     : [];
 
   const getIconForChart = (title) => {
@@ -260,6 +268,25 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Tabs for multiple files */}
+      {fileKeys.length > 1 && (
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', margin: '0 20px 24px 20px', background: '#fff', borderRadius: '8px 8px 0 0' }}>
+          <Tabs
+            value={selectedFile}
+            onChange={(e, newValue) => setSelectedFile(newValue)}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="scrollable"
+            scrollButtons="auto"
+            aria-label="Visualization File Tabs"
+          >
+            {fileKeys.map((key) => (
+              <Tab key={key} label={key.replace(/_/g, ' ')} value={key} sx={{ fontWeight: 600, fontSize: '1rem', textTransform: 'none' }} />
+            ))}
+          </Tabs>
+        </Box>
+      )}
 
       {/* Error Alert */}
       {error && (

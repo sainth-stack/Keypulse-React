@@ -4,10 +4,12 @@ import { API_URL } from '../../const';
 import axios from 'axios';
 import { LoadingIndicator } from '../../components/loader';
 import './index.css';
+import { Tabs, Tab, Box } from '@mui/material';
 
 const MissingValues = () => {
-    const [data, setData] = useState([]);
-    const [summary, setSummary] = useState(null);
+    const [fileKeys, setFileKeys] = useState([]);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [fileData, setFileData] = useState({});
     const [tableHeight, setTableHeight] = useState(400);
     const [loading, setLoading] = useState(false);
     const tableBodyRef = useRef(null);
@@ -29,34 +31,42 @@ const MissingValues = () => {
                     /NaN/g,
                     "0"
                 );
-                
                 let cleanedData;
                 try {
-                    // First try to parse the sanitized data
                     const parsedOnce = JSON.parse(sanitizedData);
-                    // Check if the result is a string that needs to be parsed again
                     if (typeof parsedOnce === 'string') {
                         cleanedData = JSON.parse(parsedOnce);
                     } else {
                         cleanedData = parsedOnce;
                     }
-                    setData(cleanedData.df);
-                    setSummary(cleanedData.Summary);
                 } catch (parseError) {
-                    console.error('Error parsing JSON:', parseError);
-                    // If parsing fails, use the original sanitized data
-                    setData(response.data.df);
-                    setSummary(response.data.Summary);
+                    cleanedData = response.data;
                 }
+                // Multi-file support
+                let files = [];
+                let fileDataObj = {};
+                if (cleanedData.data && typeof cleanedData.data === 'object') {
+                    files = Object.keys(cleanedData.data);
+                    fileDataObj = cleanedData.data;
+                } else {
+                    files = ['default'];
+                    fileDataObj = { default: cleanedData };
+                }
+                setFileKeys(files);
+                setSelectedFile(files[0] || null);
+                setFileData(fileDataObj);
             } catch (error) {
                 console.error('Error fetching data:', error);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchData();
     }, []);
+
+    // Use selected file's data
+    const data = selectedFile && fileData[selectedFile]?.df ? fileData[selectedFile].df : [];
+    const summary = selectedFile && fileData[selectedFile]?.Summary ? fileData[selectedFile].Summary : null;
 
     useEffect(() => {
         const calculateTableHeight = () => {
@@ -161,6 +171,25 @@ const MissingValues = () => {
             <div className="page-header">
                 <h1 className="page-title">Missing Values Analysis</h1>
             </div>
+
+            {/* Tabs for multiple files */}
+            {fileKeys.length > 1 && (
+                <Box sx={{ borderBottom: 1, borderColor: 'divider', margin: '0 0 24px 0', background: '#fff', borderRadius: '8px 8px 0 0' }}>
+                    <Tabs
+                        value={selectedFile}
+                        onChange={(e, newValue) => setSelectedFile(newValue)}
+                        indicatorColor="primary"
+                        textColor="primary"
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        aria-label="Missing Values File Tabs"
+                    >
+                        {fileKeys.map((key) => (
+                            <Tab key={key} label={key.replace(/_/g, ' ')} value={key} sx={{ fontWeight: 600, fontSize: '1rem', textTransform: 'none' }} />
+                        ))}
+                    </Tabs>
+                </Box>
+            )}
             
             {/* Summary Cards */}
             {summary && (
