@@ -221,7 +221,7 @@ const Kpi = () => {
                                     <span className="detail-value">
                                         {Array.isArray(kpi["Columns used"]) && kpi["Columns used"].length > 0
                                             ? kpi["Columns used"].join(', ')
-                                            : (kpi.Column || kpi["Column"] || "-")}
+                                            : (kpi.Column || kpi["Columns Used"] || "-")}
                                     </span>
                                 </div>
                                 <div className="kpi-detail-row">
@@ -265,27 +265,7 @@ const Kpi = () => {
                                             />
                                         </div>
                                     )}
-                                    {/* Render code block if available */}
-                                    {item?.code && (
-                                        <div className="code-block-container">
-                                            <button 
-                                                className="copy-button"
-                                                onClick={() => navigator.clipboard.writeText(
-                                                    typeof item.code === 'string' ? item.code : JSON.stringify(item.code, null, 2)
-                                                )}
-                                            >
-                                                <CopyOutlined /> Copy
-                                            </button>
-                                            {/* If code is HTML, render as HTML, else as pre/code */}
-                                            {typeof item.code === 'string' && item.code.trim().startsWith('<') ? (
-                                                <div className="code-block" dangerouslySetInnerHTML={{ __html: item.code }} />
-                                            ) : (
-                                                <pre className="code-block">
-                                                    <code>{typeof item.code === 'string' ? item.code : JSON.stringify(item.code, null, 2)}</code>
-                                                </pre>
-                                            )}
-                                        </div>
-                                    )}
+                                    
                                 </>
                             )}
                         </Collapse.Panel>

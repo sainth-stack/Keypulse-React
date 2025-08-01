@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from '../../assets/images/logo3.png'
 import Logo2 from '../../assets/images/ai-priori.png'
-import kalmar from '../../assets/images/kalmar.png'
+import kalmar from '../../assets/images/ai-priori2.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
 import { useLocation } from "react-router-dom";
 import sessionManager from "../../utils/sessionManager";
@@ -29,8 +29,10 @@ function Navbar() {
       setName("KProcess")
     }
   }, [location.pathname])
-  const image=localStorage.getItem('logo')
-  const logo= kalmar
+  const user = JSON.parse(localStorage.getItem('user'));
+  const logo = user && ["super admin"].includes(user?.role?.[0])
+    ? kalmar
+    : user?.organization?.organization_logo || Logo;
 
   return (
     <>

@@ -226,7 +226,7 @@ const Bot2 = () => {
    <div>
     <Bot onFileUploadComplete={handleFileUploadComplete} />
     {isInitialFileProcessing && (
-      <LoadingIndicator message="Processing your uploaded file and analyzing data..." />
+      <LoadingIndicator message="Processing..." />
     )}
      <div className="chat-container">
       <div className="recent-chats">

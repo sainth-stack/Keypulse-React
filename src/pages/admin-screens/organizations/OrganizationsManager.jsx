@@ -72,6 +72,7 @@ const OrganizationsManager = () => {
   }, []);
 
   const handleSubmit = async (values) => {
+    console.log(values,'valusdfdses')
     setSubmitLoading(true);
     try {
       const formData = new FormData();
@@ -188,8 +189,9 @@ const OrganizationsManager = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setEditingId(record.id);
+
                 form.setFieldsValue({
-                  tenant_id: record.tenant,
+                  tenant_id:user?.tenant?.tenant_id || record.tenant,
                   organization_name: record.name,
                   parent_organization_id: record.parent_organization_id
                 });
