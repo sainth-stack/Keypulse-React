@@ -14,7 +14,7 @@ const AiAndModels = () => {
         tenure: '1' // Default tenure
     });
     const [rfInputs, setRfInputs] = useState({});
-
+const[predictLoader,setPredictLoader] = useState(false)
     // Inside your main component (e.g., AiAndModels)
     const [fileKeys, setFileKeys] = useState([]);
     const [selectedFile, setSelectedFile] = useState(null);
@@ -70,6 +70,7 @@ const AiAndModels = () => {
     ];
 
     const frequencyOptions = [
+        { value: 'hours', label: 'Hours' },
         { value: 'days', label: 'Days' },
         { value: 'weeks', label: 'Weeks' },
         { value: 'months', label: 'Months' },
@@ -223,11 +224,12 @@ const AiAndModels = () => {
                                 try {
                                     const formData2 = new FormData();
                                     formData2.append('form_name', 'rf');
+                                    formData2.append('file_name',selectedFile)
                                     formData2.append('targetColumn', formData.col);
                                     Object.entries(rfInputs).forEach(([key, value]) => {
                                         formData2.append(key, value);
                                     });
-    
+    setPredictLoader(true)
                                     // Get user ID from localStorage
                                     const user = JSON.parse(localStorage.getItem('user') || '{}');
                                     const userId = user.id;
@@ -239,12 +241,14 @@ const AiAndModels = () => {
                                         },
                                         body: formData2,
                                     });
+                                    setPredictLoader(false)
                                     const data = await response.json();
                                     setResponse(prev => ({
                                         ...prev,
                                         rf_result: data.rf_result
                                     }));
                                 } catch (error) {
+                                    setPredictLoader(false)
                                     console.error('Error:', error);
                                 }
                             }}>
@@ -268,8 +272,8 @@ const AiAndModels = () => {
                                             </label>
                                         </div>
                                     ))}
-                                    <button type="submit" className="rf-submit-button">
-                                        Get Prediction
+                                    <button type="submit" className="rf-submit-button" disabled={predictLoader}>
+                                       {predictLoader ?'Predicting...' :"Get Prediction"} 
                                     </button>
                                 </div>
                             </form>
