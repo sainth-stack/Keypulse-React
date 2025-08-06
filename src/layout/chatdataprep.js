@@ -188,7 +188,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                         <AnswersChat2
                           question={item.question}
                           answer={item.answer}
-                          graph={item.graph}
+                          graph={typeof item.graph === 'string' ? JSON.parse(item.graph) : item.graph}
                           loading={false}
                           type={item.view}
                           name={"genbi"}

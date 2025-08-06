@@ -72,11 +72,8 @@ const AnswersChat2 = ({
                   style={{
                     width: "100%",
                     height: "60vh",
-                    padding: "15px",
-                    backgroundColor: "#ffffff",
-                    borderRadius: "12px",
+                      borderRadius: "12px",
                   }}
-                  className="plot-container"
                 />
     </div>
           }
