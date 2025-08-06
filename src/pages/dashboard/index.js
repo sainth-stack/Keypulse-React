@@ -42,8 +42,8 @@ const Dashboard = () => {
 
   // Advanced dialog states
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [numOfPlots, setNumOfPlots] = useState(1);
-  const [numOfRows, setNumOfRows] = useState(10);
+  const [numOfPlots, setNumOfPlots] = useState(4);
+  const [numOfRows, setNumOfRows] = useState(100);
   const [advancedLoading, setAdvancedLoading] = useState(false);
 
   // Cache keys
@@ -51,16 +51,19 @@ const Dashboard = () => {
   const CACHE_EXPIRY_KEY = 'dashboard_data_expiry';
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  // --- Rate limiting and cancellation ---
-  const abortControllerRef = useRef(null);           // For fetch cancellation
-  const axiosCancelSource = useRef(null);            // For axios cancellation
-  const rateLimitTimerRef = useRef(null);            // For debounce timer
+  // Unified API call management
+  const activeRequestRef = useRef(null);
 
   // On mount, clear cache and fetch data ONCE
   useEffect(() => {
     clearCache();
     fetchData(true);
     isInitialMount.current = false;
+    
+    // Cleanup on unmount
+    return () => {
+      cancelActiveRequest();
+    };
     // eslint-disable-next-line
   }, []);
 
@@ -76,6 +79,14 @@ const Dashboard = () => {
     }
     // eslint-disable-next-line
   }, [fileName]);
+
+  // Cancel any active request
+  const cancelActiveRequest = () => {
+    if (activeRequestRef.current) {
+      activeRequestRef.current.abort();
+      activeRequestRef.current = null;
+    }
+  };
 
   const getCachedData = () => {
     try {
@@ -115,65 +126,118 @@ const Dashboard = () => {
     return { fileKeys: ["default"], fileData: { default: apiData } };
   };
 
-  // --- Debounced fetchData with cancellation and rate limit ---
-  const fetchData = async (forceRefresh = false) => {
+  // Unified API call function
+  const makeApiCall = async (config = null) => {
+    // Cancel any existing request
+    cancelActiveRequest();
+    
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
+    
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+    
+    try {
+      let response;
+      
+      if (config) {
+        // POST request with custom config
+        const formData = new FormData();
+        formData.append('num_of_plots', config.numOfPlots || 4);
+        formData.append('num_of_rows', config.numOfRows || 100);
+        setLoading(true);
+        response = await axios.post(
+          `${API_URL}/get_plots`,
+          formData,
+          {
+            headers: { 'X-User-ID': userId },
+            signal: controller.signal,
+          }
+        );
+        setLoading(false);
+        return response.data;
+      } else {
+        // GET request with default config
+        const formData = new FormData();
+        formData.append('num_of_plots', 4);
+        formData.append('num_of_rows', 100);
+        setLoading(true);
+        response = await axios.post(
+          `${API_URL}/get_plots`,
+          formData,
+          {
+            headers: { 'X-User-ID': userId },
+            signal: controller.signal,
+          }
+        );
+        setLoading(false);
+        return response.data;
+      }
+    } catch (error) {
+      setLoading(false);
+      if (axios.isCancel(error) || error.name === 'AbortError') {
+        throw new Error('Request cancelled');
+      }
+      throw error;
+    } finally {
+      // Clear the active request reference if this was the active request
+      if (activeRequestRef.current === controller) {
+        activeRequestRef.current = null;
+      }
+    }
+  };
+
+  // Fetch data function with proper loading states
+  const fetchData = async (forceRefresh = false, config = null) => {
+    // Prevent multiple simultaneous calls
     if (loading) return;
+    
     setLoading(true);
     setError(null);
 
-    // Cancel previous debounce
-    if (rateLimitTimerRef.current) clearTimeout(rateLimitTimerRef.current);
-
-    // Abort any ongoing fetch
-    if (abortControllerRef.current) abortControllerRef.current.abort();
-
-    // Create new abort controller for this call
-    abortControllerRef.current = new AbortController();
-
-    // Debounce API call (wait 3s after last call)
-    rateLimitTimerRef.current = setTimeout(async () => {
-      try {
-        if (!forceRefresh) {
-          const cachedData = getCachedData();
-          if (cachedData) {
-            const { fileKeys, fileData } = parseApiData(cachedData);
-            setData(fileData);
-            setFileKeys(fileKeys);
-            setSelectedFile(fileKeys[0] || null);
-            setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
-            setLoading(false);
-            return;
-          }
-        }
-
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user.id;
-        const response = await fetch(`${API_URL}/get_plots`, {
-          headers: { 'X-User-ID': userId },
-          signal: abortControllerRef.current.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        const { fileKeys, fileData } = parseApiData(result);
-
-        setData(fileData);
-        setFileKeys(fileKeys);
-        setSelectedFile(fileKeys[0] || null);
-        setCachedData(result);
-        setLastRefresh(new Date());
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          // Request was cancelled
+    try {
+      // Check cache only for GET requests without custom config
+      if (!forceRefresh && !config) {
+        const cachedData = getCachedData();
+        if (cachedData) {
+          const { fileKeys, fileData } = parseApiData(cachedData);
+          setData(fileData);
+          setFileKeys(fileKeys);
+          setSelectedFile(fileKeys[0] || null);
+          setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
+          setLoading(false);
           return;
         }
-        console.error("Error fetching data:", error);
-        setError(error.message || "Failed to fetch dashboard data");
+      }
 
-        // Try to use cached data as fallback
+      // Make API call
+      const result = await makeApiCall(config);
+      const { fileKeys, fileData } = parseApiData(result);
+
+      setData(fileData);
+      setFileKeys(fileKeys);
+      setSelectedFile(fileKeys[0] || null);
+      
+      // Only cache if it's a default GET request
+      if (!config) {
+        setCachedData(result);
+      }
+      
+      setLastRefresh(new Date());
+      setError(null);
+      
+    } catch (error) {
+      if (error.message === 'Request cancelled') {
+        // Request was cancelled, don't show error
+        return;
+      }
+      
+      console.error("Error fetching data:", error);
+      setError(error.response?.data?.message || error.message || "Failed to fetch dashboard data");
+
+      // Try to use cached data as fallback only for GET requests
+      if (!config) {
         const cachedData = getCachedData();
         if (cachedData) {
           const { fileKeys, fileData } = parseApiData(cachedData);
@@ -182,10 +246,10 @@ const Dashboard = () => {
           setSelectedFile(fileKeys[0] || null);
           setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
         }
-      } finally {
-        setLoading(false);
       }
-    }, 3000); // 3 second delay
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRefresh = () => {
@@ -231,52 +295,35 @@ const Dashboard = () => {
     return <VisibilityIcon style={{ color: "#1976d2", marginRight: "8px" }} />;
   };
 
-  // ---- Advanced Generate handler ----
+  // Advanced Generate handler
   const handleAdvancedGenerate = async () => {
     setAdvancedLoading(true);
-
-    // Cancel previous debounce
-    if (rateLimitTimerRef.current) clearTimeout(rateLimitTimerRef.current);
-
-    // Cancel previous axios request if running
-    if (axiosCancelSource.current) axiosCancelSource.current.cancel();
-    axiosCancelSource.current = axios.CancelToken.source();
-
-    rateLimitTimerRef.current = setTimeout(async () => {
-      try {
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user.id;
-
-        // Send FormData (not JSON) as payload
-        const formData = new FormData();
-        formData.append('num_of_plots', numOfPlots);
-        formData.append('num_of_rows', numOfRows);
-
-        const response = await axios.post(
-          `${API_URL}/get_plots`,
-          formData,
-          {
-            headers: { 'X-User-ID': userId },
-            cancelToken: axiosCancelSource.current.token,
-          }
-        );
-        const { fileKeys, fileData } = parseApiData(response.data);
-        setData(fileData);
-        setFileKeys(fileKeys);
-        setSelectedFile(fileKeys[0] || null);
-        setCachedData(response.data);
-        setLastRefresh(new Date());
-        setError(null);
-        setAdvancedOpen(false);
-      } catch (error) {
-        if (axios.isCancel(error)) return;
-        setError(error.message || "Failed to generate advanced plots");
-      } finally {
-        setAdvancedLoading(false);
-      }
-    }, 3000); // 3 second delay
+    
+    try {
+      const config = {
+        numOfPlots: numOfPlots,
+        numOfRows: numOfRows
+      };
+      
+      await fetchData(true, config);
+      setAdvancedOpen(false);
+      
+    } catch (error) {
+      console.error("Error in advanced generate:", error);
+      setError(error.message || "Failed to generate advanced plots");
+    } finally {
+      setAdvancedLoading(false);
+    }
   };
-  // -----------------------------------
+
+  // Handle dialog close - cancel any ongoing advanced request
+  const handleAdvancedClose = () => {
+    if (advancedLoading) {
+      cancelActiveRequest();
+      setAdvancedLoading(false);
+    }
+    setAdvancedOpen(false);
+  };
 
   return (
     <div className="dashboard-container">
@@ -329,12 +376,13 @@ const Dashboard = () => {
                 marginLeft: 12,
               }}
               onClick={() => setAdvancedOpen(true)}
+              disabled={loading}
             >
-              Generate Advanced
+              Custom Config
             </Button>
             {/* Refresh Button */}
             <Tooltip title="Refresh Data">
-              <IconButton
+              <Button
                 onClick={handleRefresh}
                 disabled={loading}
                 className="refresh-button"
@@ -343,6 +391,12 @@ const Dashboard = () => {
                   backgroundColor: "rgba(255,255,255,0.1)",
                   border: "1px solid rgba(255,255,255,0.2)",
                   borderRadius: "8px",
+                  minWidth: 40,
+                  minHeight: 40,
+                  padding: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 {loading ? (
@@ -350,16 +404,17 @@ const Dashboard = () => {
                 ) : (
                   <RefreshIcon />
                 )}
-              </IconButton>
+                <span style={{marginLeft: 8}}>Refresh</span>
+              </Button>
             </Tooltip>
           </div>
         </div>
       </div>
 
-   {/* Advanced Generate Dialog - Professional Version */}
-   <Dialog 
+      {/* Advanced Generate Dialog */}
+      <Dialog 
         open={advancedOpen} 
-        onClose={() => setAdvancedOpen(false)} 
+        onClose={handleAdvancedClose}
         maxWidth="sm" 
         fullWidth
         PaperProps={{
@@ -421,6 +476,7 @@ const Dashboard = () => {
                 fullWidth
                 size="medium"
                 placeholder="Enter number of plots"
+                disabled={advancedLoading}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '8px',
@@ -472,6 +528,7 @@ const Dashboard = () => {
                 fullWidth
                 size="medium"
                 placeholder="Enter number of rows"
+                disabled={advancedLoading}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '8px',
@@ -509,9 +566,10 @@ const Dashboard = () => {
           borderRadius: '0 0 16px 16px'
         }}>
           <Button 
-            onClick={() => setAdvancedOpen(false)} 
+            onClick={handleAdvancedClose}
             variant="outlined"
             size="large"
+            disabled={advancedLoading}
             sx={{
               minWidth: '100px',
               borderRadius: '8px',
@@ -605,14 +663,14 @@ const Dashboard = () => {
       )}
 
       {/* Loading State */}
-      {loading && !data && (
+      {loading && (
         <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
           <LoadingIndicator message="Loading dashboard data..." />
         </div>
       )}
 
       {/* Charts Grid */}
-      {parsedData.length > 0 && (
+      {!loading && parsedData.length > 0 && (
         <div
           className="dashboard-grid"
           style={{

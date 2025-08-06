@@ -72,7 +72,8 @@ const AnswersChat2 = ({
                   style={{
                     width: "100%",
                     height: "60vh",
-                      borderRadius: "12px",
+                    borderRadius: "0",
+                    boxShadow: "none",
                   }}
                 />
     </div>
