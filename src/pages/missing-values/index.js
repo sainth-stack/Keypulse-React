@@ -4,7 +4,7 @@ import { API_URL } from '../../const';
 import axios from 'axios';
 import { LoadingIndicator } from '../../components/loader';
 import './index.css';
-import { Tabs, Tab, Box } from '@mui/material';
+import { Tabs, Tab, Box, FormControl, Select, MenuItem, InputLabel } from '@mui/material';
 
 const MissingValues = () => {
     const [fileKeys, setFileKeys] = useState([]);
@@ -12,6 +12,7 @@ const MissingValues = () => {
     const [fileData, setFileData] = useState({});
     const [tableHeight, setTableHeight] = useState(400);
     const [loading, setLoading] = useState(false);
+    const [filterOption, setFilterOption] = useState('missing-only'); // New filter state
     const tableBodyRef = useRef(null);
 
     useEffect(() => {
@@ -65,8 +66,27 @@ const MissingValues = () => {
     }, []);
 
     // Use selected file's data
-    const data = selectedFile && fileData[selectedFile]?.df ? fileData[selectedFile].df : [];
+    const rawData = selectedFile && fileData[selectedFile]?.df ? fileData[selectedFile].df : [];
     const summary = selectedFile && fileData[selectedFile]?.Summary ? fileData[selectedFile].Summary : null;
+
+    // Filter data based on filter option
+    const getFilteredData = () => {
+        if (filterOption === 'missing-only') {
+            return rawData.filter(row => {
+                return Object.values(row).some(cell => {
+                    const value = cell.value;
+                    
+                    // Check for actual missing values (not imputed ones)
+                    const isMissing =  cell.is_imputed === "True"; // Only consider 0 as missing if not imputed
+                    
+                    return isMissing;
+                });
+            });
+        }
+        return rawData; // Return all rows
+    };
+
+    const data = getFilteredData();
 
     useEffect(() => {
         const calculateTableHeight = () => {
@@ -89,11 +109,11 @@ const MissingValues = () => {
             clearTimeout(timer);
             window.removeEventListener('resize', calculateTableHeight);
         };
-    }, [summary]);
+    }, [summary, filterOption]);
 
     const getColumns = () => {
-        if (data.length === 0) return [];
-        return Object.keys(data[0]);
+        if (rawData.length === 0) return [];
+        return Object.keys(rawData[0]);
     };
 
     // Calculate dynamic column width based on content
@@ -117,7 +137,7 @@ const MissingValues = () => {
         if (!summary) return {};
         
         const totalColumns = Object.keys(summary.missing_count_per_column).length;
-        const totalCells = data.length * totalColumns;
+        const totalCells = rawData.length * totalColumns;
         const completionRate = totalCells > 0 ? ((totalCells - summary.total_missing_values) / totalCells * 100) : 100;
         
         // Find most affected column
@@ -160,6 +180,25 @@ const MissingValues = () => {
     };
 
     const stats = getAdvancedStats();
+
+    // Handle filter change
+    const handleFilterChange = (event) => {
+        setFilterOption(event.target.value);
+    };
+
+    // Get counts for filter options
+    const getMissingRowsCount = () => {
+        return rawData.filter(row => {
+            return Object.values(row).some(cell => {
+                const value = cell.value;
+                
+                // Check for actual missing values (not imputed ones)
+                const isMissing =  cell.is_imputed === "True"; // Only consider 0 as missing if not imputed
+                
+                return isMissing;
+            });
+        }).length;
+    };
 
     // Show loader while loading
     if (loading) {
@@ -211,7 +250,7 @@ const MissingValues = () => {
 
                         <div className="stat-card">
                             <div className="stat-content">
-                                <div className="stat-value">{data.length.toLocaleString()}</div>
+                                <div className="stat-value">{rawData.length.toLocaleString()}</div>
                                 <div className="stat-label">Total Records</div>
                             </div>
                         </div>
@@ -287,12 +326,98 @@ const MissingValues = () => {
             )}
 
             {/* Data Table */}
-            {data.length > 0 && (
+            {rawData.length > 0 && (
                 <div className="table-section">
                     <div className="table-header">
-                        <h3>Data Preview</h3>
-                        <span className="table-subtitle">{data.length.toLocaleString()} rows × {getColumns().length} columns</span>
+                        <div className="table-title-section">
+                            <h3>Data Preview</h3>
+                            <span className="table-subtitle">
+                                {filterOption === 'missing-only' 
+                                    ? `${data.length.toLocaleString()} rows with missing values × ${getColumns().length} columns`
+                                    : `${data.length.toLocaleString()} rows × ${getColumns().length} columns`
+                                }
+                            </span>
+                        </div>
+                        
+                        {/* Filter Dropdown */}
+                        <div className="table-controls">
+                            <FormControl 
+                                variant="outlined" 
+                                size="small" 
+                                sx={{ 
+                                    minWidth: 200,
+                                    backgroundColor: '#fff',
+                                    borderRadius: '8px',
+                                    '& .MuiOutlinedInput-root': {
+                                        borderRadius: '8px',
+                                        fontWeight: 500,
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#1976d2',
+                                        },
+                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#1976d2',
+                                            borderWidth: 2,
+                                        }
+                                    },
+                                    '& .MuiInputLabel-root': {
+                                        fontWeight: 500,
+                                        color: '#666',
+                                        '&.Mui-focused': {
+                                            color: '#1976d2',
+                                        }
+                                    }
+                                }}
+                            >
+                                <InputLabel id="filter-select-label">View Options</InputLabel>
+                                <Select
+                                    labelId="filter-select-label"
+                                    id="filter-select"
+                                    value={filterOption}
+                                    label="View Options"
+                                    onChange={handleFilterChange}
+                                    sx={{
+                                        '& .MuiSelect-select': {
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
+                                        }
+                                    }}
+                                >
+                                    <MenuItem 
+                                        value="missing-only"
+                                        sx={{ 
+                                            fontWeight: 500,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            '&:hover': {
+                                                backgroundColor: '#f5f5f5'
+                                            }
+                                        }}
+                                    >
+                                        <span style={{ color: '#ff6b35' }}>●</span>
+                                        Only Missing Rows ({getMissingRowsCount().toLocaleString()})
+                                    </MenuItem>
+                                    <MenuItem 
+                                        value="all-rows"
+                                        sx={{ 
+                                            fontWeight: 500,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            '&:hover': {
+                                                backgroundColor: '#f5f5f5'
+                                            }
+                                        }}
+                                    >
+                                        <span style={{ color: '#4caf50' }}>●</span>
+                                        All Rows ({rawData.length.toLocaleString()})
+                                    </MenuItem>
+                                </Select>
+                            </FormControl>
+                        </div>
                     </div>
+                    
                     <div className="table-wrapper">
                         {/* Fixed Header */}
                         <div className="table-header-row">
@@ -317,14 +442,20 @@ const MissingValues = () => {
                         
                         {/* Virtualized Body */}
                         <div className="table-body" ref={tableBodyRef}>
-                            <List
-                                height={tableHeight}
-                                itemCount={data.length}
-                                itemSize={50}
-                                width="100%"
-                            >
-                                {Row}
-                            </List>
+                            {data.length > 0 ? (
+                                <List
+                                    height={tableHeight}
+                                    itemCount={data.length}
+                                    itemSize={50}
+                                    width="100%"
+                                >
+                                    {Row}
+                                </List>
+                            ) : (
+                                <div className="no-data-message">
+                                    <p>No rows with missing values found in the current dataset.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
