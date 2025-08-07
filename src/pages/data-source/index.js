@@ -244,10 +244,20 @@ const userObj = localStorage.getItem('user');
       return;
     }
     try {
+      // Filter out selected files that no longer exist in the available files list
+      const validSelectedFiles = selectedFiles.filter(fileName => files.includes(fileName));
+      
+      if (validSelectedFiles.length === 0) {
+        toast.error('None of the selected files exist anymore. Please select available files.');
+        return;
+      }
+      
+      // Silently filter out unavailable files without showing warning
+      
       const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
       const formData = new FormData();
-      selectedFiles.forEach(fileName => {
+      validSelectedFiles.forEach(fileName => {
         formData.append('file_name', fileName);
       });
       const response = await fetch(`${API_URL}/update_user_file_name`, {
@@ -259,7 +269,7 @@ const userObj = localStorage.getItem('user');
       });
       if (!response.ok) throw new Error('Failed to update file name');
       toast.success('Files selected!');
-      localStorage.setItem('fileName', JSON.stringify(selectedFiles));
+      localStorage.setItem('fileName', JSON.stringify(validSelectedFiles));
       navigate('/');
     } catch (error) {
       toast.error('Failed to select files. Please try again.');
@@ -344,7 +354,6 @@ const userObj = localStorage.getItem('user');
       </Dialog>
       <h1 className="data-source-title">Data Source</h1>
       <div className="file-grid">
-        {/* Upload Card */}
         <div className="file-card upload-card" onClick={handleUploadClick} tabIndex={0} role="button">
           <input
             type="file"
@@ -352,8 +361,8 @@ const userObj = localStorage.getItem('user');
             ref={fileInputRef}
             onChange={handleFileChange}
             disabled={isUploading}
-            multiple // Allow multiple file selection
-            accept=".csv" // Only allow CSV files
+            multiple 
+            accept=".csv" 
           />
           <div className="thumbnail-wrapper">
             <FaPlus className="plus-icon" />
@@ -436,4 +445,4 @@ const userObj = localStorage.getItem('user');
       </div>
     </div>
   );
-} 
+}

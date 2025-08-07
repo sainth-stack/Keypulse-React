@@ -100,9 +100,6 @@
   backdrop-filter: blur(10px);
 }
 
-.refresh-button:hover {
-  transform: rotate(180deg);
-}
 
 /* Typography improvements */
 .dashboard-title {

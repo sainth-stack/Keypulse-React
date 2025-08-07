@@ -451,9 +451,9 @@ const Dashboard = () => {
                 Number of Plots
               </Typography>
               <TextField
-                type="number"
+                type="text"
                 value={numOfPlots}
-                onChange={(e) => setNumOfPlots(Math.max(1, Math.min(20, Number(e.target.value))))}
+                onChange={(e) => setNumOfPlots(Number(e.target.value))}
                 inputProps={{ 
                   min: 1, 
                   max: 20,
@@ -503,9 +503,9 @@ const Dashboard = () => {
                 Data Rows per Plot
               </Typography>
               <TextField
-                type="number"
+                type="text"
                 value={numOfRows}
-                onChange={(e) => setNumOfRows(Math.max(1, Math.min(1000, Number(e.target.value))))}
+                onChange={(e) => setNumOfRows(Number(e.target.value))}
                 inputProps={{ 
                   min: 1, 
                   max: 1000,
