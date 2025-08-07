@@ -126,7 +126,7 @@ const Dashboard = () => {
     return { fileKeys: ["default"], fileData: { default: apiData } };
   };
 
-  // Unified API call function
+  // FIXED: Unified API call function - removed premature setLoading(false)
   const makeApiCall = async (config = null) => {
     // Cancel any existing request
     cancelActiveRequest();
@@ -139,43 +139,21 @@ const Dashboard = () => {
     const userId = user.id;
     
     try {
-      let response;
+      const formData = new FormData();
+      formData.append('num_of_plots', config?.numOfPlots || 4);
+      formData.append('num_of_rows', config?.numOfRows || 100);
       
-      if (config) {
-        // POST request with custom config
-        const formData = new FormData();
-        formData.append('num_of_plots', config.numOfPlots || 4);
-        formData.append('num_of_rows', config.numOfRows || 100);
-        setLoading(true);
-        response = await axios.post(
-          `${API_URL}/get_plots`,
-          formData,
-          {
-            headers: { 'X-User-ID': userId },
-            signal: controller.signal,
-          }
-        );
-        setLoading(false);
-        return response.data;
-      } else {
-        // GET request with default config
-        const formData = new FormData();
-        formData.append('num_of_plots', 4);
-        formData.append('num_of_rows', 100);
-        setLoading(true);
-        response = await axios.post(
-          `${API_URL}/get_plots`,
-          formData,
-          {
-            headers: { 'X-User-ID': userId },
-            signal: controller.signal,
-          }
-        );
-        setLoading(false);
-        return response.data;
-      }
-    } catch (error) {
+      const response = await axios.post(
+        `${API_URL}/get_plots`,
+        formData,
+        {
+          headers: { 'X-User-ID': userId },
+          signal: controller.signal,
+        }
+      );
       setLoading(false);
+      return response.data;
+    } catch (error) {
       if (axios.isCancel(error) || error.name === 'AbortError') {
         throw new Error('Request cancelled');
       }
@@ -188,12 +166,19 @@ const Dashboard = () => {
     }
   };
 
-  // Fetch data function with proper loading states
+  // FIXED: Fetch data function with proper loading states
   const fetchData = async (forceRefresh = false, config = null) => {
     // Prevent multiple simultaneous calls
     if (loading) return;
     
-    setLoading(true);
+    // Set loading state based on context
+    if (config) {
+      setAdvancedLoading(true);
+      setLoading(true);
+    } else {
+      setLoading(true);
+    }
+    
     setError(null);
 
     try {
@@ -206,8 +191,7 @@ const Dashboard = () => {
           setFileKeys(fileKeys);
           setSelectedFile(fileKeys[0] || null);
           setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
-          setLoading(false);
-          return;
+            return;
         }
       }
 
@@ -232,7 +216,7 @@ const Dashboard = () => {
         // Request was cancelled, don't show error
         return;
       }
-      
+      setLoading(false);
       console.error("Error fetching data:", error);
       setError(error.response?.data?.message || error.message || "Failed to fetch dashboard data");
 
@@ -248,7 +232,11 @@ const Dashboard = () => {
         }
       }
     } finally {
-      setLoading(false);
+      // FIXED: Properly reset loading states
+      if (config) {
+        setAdvancedLoading(false);
+      } else {
+      }
     }
   };
 
@@ -297,8 +285,6 @@ const Dashboard = () => {
 
   // Advanced Generate handler
   const handleAdvancedGenerate = async () => {
-    setAdvancedLoading(true);
-    
     try {
       const config = {
         numOfPlots: numOfPlots,
@@ -311,8 +297,6 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Error in advanced generate:", error);
       setError(error.message || "Failed to generate advanced plots");
-    } finally {
-      setAdvancedLoading(false);
     }
   };
 
@@ -324,6 +308,9 @@ const Dashboard = () => {
     }
     setAdvancedOpen(false);
   };
+
+  // FIXED: Better loading state logging
+  console.log('Loading states:', { loading, advancedLoading });
 
   return (
     <div className="dashboard-container">
@@ -376,7 +363,7 @@ const Dashboard = () => {
                 marginLeft: 12,
               }}
               onClick={() => setAdvancedOpen(true)}
-              disabled={loading}
+              disabled={loading || advancedLoading}
             >
               Custom Config
             </Button>
@@ -384,7 +371,7 @@ const Dashboard = () => {
             <Tooltip title="Refresh Data">
               <Button
                 onClick={handleRefresh}
-                disabled={loading}
+                disabled={loading || advancedLoading}
                 className="refresh-button"
                 style={{
                   color: "white",
@@ -434,7 +421,7 @@ const Dashboard = () => {
           background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
           borderRadius: '16px 16px 0 0'
         }}>
-          Advanced Plot Configuration
+          Plot Configuration
         </DialogTitle>
         
         <DialogContent sx={{ px: 4, py: 3, background: '#fff' }}>
@@ -663,14 +650,14 @@ const Dashboard = () => {
       )}
 
       {/* Loading State */}
-      {loading && (
+      {(loading || advancedLoading) && (
         <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
-          <LoadingIndicator message="Loading dashboard data..." />
+          <LoadingIndicator message={advancedLoading ? "Generating custom plots..." : "Loading dashboard data..."} />
         </div>
       )}
 
       {/* Charts Grid */}
-      {!loading && parsedData.length > 0 && (
+      {!loading && !advancedLoading && parsedData.length > 0 && (
         <div
           className="dashboard-grid"
           style={{
@@ -766,7 +753,7 @@ const Dashboard = () => {
       )}
 
       {/* Empty State */}
-      {!loading && parsedData.length === 0 && (
+      {!loading && !advancedLoading && parsedData.length === 0 && (
         <div
           className="dashboard-card"
           style={{
