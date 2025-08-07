@@ -52,13 +52,14 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                     return {
                         ...item,
                         view: "Text",
-                        answer: res?.data?.chart_response ? "" : res?.data?.text_output || res?.data?.text_pre_code_response,
-                        graph: res?.data?.chart_response,
+                        answer: (res?.data?.chart_response || res?.data?.plot) ? "" : (res?.data?.text_output || res?.data?.text_pre_code_response),
+                        graph: res?.data?.chart_response || res?.data?.plot,
                         loading: false,
                         isHtml: true // Add flag to indicate HTML content
                     }
                 } else return item;
             })
+            console.log(ans)
             setAnswers(ans)
         } catch (err) {
             const ans = data.map((item) => {
@@ -90,7 +91,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
             top: "64%",
             right: "1rem",
             transform: "translateY(-50%)",
-            width: "600px",
+            width: "700px",
             height: "70vh",
             background: "#fff",
             borderRadius: "12px",

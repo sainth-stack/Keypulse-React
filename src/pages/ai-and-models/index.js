@@ -259,7 +259,7 @@ const[predictLoader,setPredictLoader] = useState(false)
                                             <label className="rf-label">
                                                 {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                                 <input
-                                                    type={col.toLowerCase().includes('date') ? 'date' : 'text'}
+                                                    type={'text'}
                                                     className="rf-input"
                                                     value={rfInputs[col] || ''}
                                                     onChange={(e) => setRfInputs(prev => ({
