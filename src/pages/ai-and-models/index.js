@@ -253,7 +253,7 @@ const[predictLoader,setPredictLoader] = useState(false)
                                 }
                             }}>
                                 <div className="rf-inputs">
-                                    <h4>Enter Values for Prediction:</h4>
+                                    <h4>{`Enter Values for ${formData.col ? formData.col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' ' : ''}Prediction:`}</h4>
                                     {response.rf_cols?.map((col) => (
                                         <div key={col} className="rf-form-group">
                                             <label className="rf-label">
@@ -280,7 +280,7 @@ const[predictLoader,setPredictLoader] = useState(false)
                             <div className="rf-result">
                                 {response.rf_result && (
                                     <div className="prediction-result">
-                                        <h3>Prediction Result:</h3>
+                                        <h3>{`${formData.col ? formData.col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' ' : ''}Prediction Result:`}</h3>
                                         <p className="result-value">{response.rf_result}</p>
                                         <div className="business-interpretation">
                                             <h4>Business Interpretation:</h4>
