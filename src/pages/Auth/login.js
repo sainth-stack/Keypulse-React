@@ -90,7 +90,7 @@ export const Login = () => {
     event.preventDefault();
     
     const formData = new URLSearchParams();
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
     formData.append('email', trimmedEmail);
     formData.append('password', trimmedPassword);
@@ -224,7 +224,7 @@ export const Login = () => {
                   name="password"
                   value={password}
                   maxLength={16}
-                  minLength={8}
+                  minLength={6}
                   required
                   onChange={(e) => setPassword(e.target.value)}
                 />
