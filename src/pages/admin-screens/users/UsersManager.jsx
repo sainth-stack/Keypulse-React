@@ -28,6 +28,9 @@ const UsersManager = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [autoPassword, setAutoPassword] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
   // Ref to track if initial load is done
   const initialLoadRef = useRef(false);
@@ -49,29 +52,35 @@ const UsersManager = () => {
   }), [permissions]);
 
   // Fetch only users data (for refresh after operations)
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (page = currentPage, size = pageSize) => {
     try {
-      // Get current values directly from localStorage
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentIsSuper = isSuperAdmin();
-      
+
       const response = await axios.get(`${API_URL}/users`, {
         params: {
-          organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
+          organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : '',
+          page,
+          page_size: size,
         }
       });
-      
-      const usersData = (currentIsSuper ? response?.data : response?.data?.users) || [];
+
+      // Always use response.data.users and response.data.pagination
+      const usersData = response?.data?.users || [];
+      const pagination = response?.data?.pagination || {};
       const processedUsers = usersData.map((user, index) => ({
         ...user,
         key: user.id,
-        sno: index + 1,
+        sno: (pagination.page - 1) * pagination.page_size + index + 1,
       }));
       setUsers(processedUsers);
+      setTotal(pagination.total_records || processedUsers.length);
+      setCurrentPage(pagination.page || page);
+      setPageSize(pagination.page_size || size);
     } catch (error) {
       message.error('Failed to refresh users data');
     }
-  }, []);
+  }, [currentPage, pageSize]);
 
   // Fetch organizations and roles data for modal
   const fetchModalData = useCallback(async () => {
@@ -129,26 +138,7 @@ const UsersManager = () => {
         setLoading(true);
         
         try {
-          // Get current values directly from localStorage
-          const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-          const currentIsSuper = isSuperAdmin();
-
-          // Only fetch users data on initial load for faster performance
-          const response = await axios.get(`${API_URL}/users`, {
-            params: {
-              organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : ''
-            }
-          });
-
-          // Process users data
-          const usersData = (currentIsSuper ? response?.data : response?.data?.users) || [];
-          const processedUsers = usersData.map((user, index) => ({
-            ...user,
-            key: user.id,
-            sno: index + 1,
-          }));
-          setUsers(processedUsers);
-
+          await fetchUsers(1, pageSize);
         } catch (error) {
           console.error('Failed to fetch users data:', error);
           message.error('Failed to load users data. Please try again.');
@@ -159,7 +149,7 @@ const UsersManager = () => {
       
       loadData();
     }
-  }, []); // Empty dependency array - this effect runs only once
+  }, [fetchUsers, pageSize]); // Empty dependency array - this effect runs only once
 
   // Handle form submission
   const handleSubmit = async (values) => {
@@ -193,7 +183,7 @@ const UsersManager = () => {
       setEditingId(null);
       
       // Refresh only users data
-      await fetchUsers();
+      await fetchUsers(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Operation failed');
     } finally {
@@ -208,7 +198,7 @@ const UsersManager = () => {
       message.success('User deleted successfully');
       
       // Refresh only users data
-      await fetchUsers();
+      await fetchUsers(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
@@ -369,10 +359,17 @@ const UsersManager = () => {
           loading={loading}
           rowKey="id"
           pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
             showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => 
-              `${range[0]}-${range[1]} of ${total} items`,
+            // Removed showQuickJumper for simplicity
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+              fetchUsers(page, size);
+            },
           }}
         />
 

@@ -26,6 +26,7 @@ import {
 } from "@mui/icons-material";
 import { LoadingIndicator } from "../../components/loader";
 import './index.css';
+import { logAmplitudeEvent } from '../../utils';
 
 const Dashboard = () => {
   const [data, setData] = useState(null);
@@ -57,7 +58,7 @@ const Dashboard = () => {
   // On mount, clear cache and fetch data ONCE
   useEffect(() => {
     clearCache();
-    fetchData(true);
+    fetchData(true, null, true); // true = isInitialLoad
     isInitialMount.current = false;
     
     // Cleanup on unmount
@@ -166,8 +167,8 @@ const Dashboard = () => {
     }
   };
 
-  // FIXED: Fetch data function with proper loading states
-  const fetchData = async (forceRefresh = false, config = null) => {
+  // Modified fetchData to accept isInitialLoad for event logging
+  const fetchData = async (forceRefresh = false, config = null, isInitialLoad = false) => {
     // Prevent multiple simultaneous calls
     if (loading) return;
     
@@ -210,6 +211,17 @@ const Dashboard = () => {
       
       setLastRefresh(new Date());
       setError(null);
+      
+      // Log Amplitude events
+      if (window && window.amplitude) {
+        if (isInitialLoad) {
+          logAmplitudeEvent('Visualizations Viewed', { fileNames: fileKeys });
+        } else if (config) {
+          logAmplitudeEvent('Visualizations Custom Config', { fileNames: fileKeys, config });
+        } else if (forceRefresh) {
+          logAmplitudeEvent('Visualizations Refreshed', { fileNames: fileKeys });
+        }
+      }
       
     } catch (error) {
       if (error.message === 'Request cancelled') {

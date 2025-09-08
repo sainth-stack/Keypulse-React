@@ -2,7 +2,7 @@ import "./App.css";
 import { AdminLayout } from "./layout";
 import { Login } from "./pages/Auth/login";
 import { Register } from "./pages/Auth/register";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Bot from "./pages/bot";
 import DataAnalysis from "./pages/data-analysis";
 import MissingValues from "./pages/missing-values";
@@ -21,8 +21,10 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SessionStatus from "./components/SessionStatus";
 import DataSource from "./pages/data-source";
 import { ResetPassword } from "./pages/Auth/ResetPassword";
+import { useEffect } from "react";
 
 function App() {
+
   return (
     <BrowserRouter>
       <Routes>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -47,6 +47,11 @@ const UserRoles = () => {
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const initialLoadRef = useRef(false);
 
   const userPermissions = JSON.parse(localStorage.getItem('permissions') || []);
   const canCreate = userPermissions.includes("roles_Create");
@@ -68,21 +73,29 @@ const UserRoles = () => {
     kpi: ['Read'],
   };
 
-  const fetchRoles = async () => {
+  // Updated fetchRoles for pagination
+  const fetchRoles = async (page = currentPage, size = pageSize) => {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/roles`, {
         params: {
-          o_id: !isSuperAdmin() ? user?.organization?.organization_id : ''
+          o_id: !isSuperAdmin() ? user?.organization?.organization_id : '',
+          page,
+          page_size: size,
         }
       });
-      const dataWithIndex = response.data.roles.map((role, index) => ({
+      const rolesData = response.data.roles || [];
+      const pagination = response.data.pagination || {};
+      const dataWithIndex = rolesData.map((role, index) => ({
         ...role,
         key: role.id,
-        sno: index + 1,
+        sno: (pagination.page ? (pagination.page - 1) * (pagination.page_size || size) : 0) + index + 1,
         permissions: Array.isArray(role.permissions) ? role.permissions : [],
       }));
       setRoles(dataWithIndex);
+      setTotal(pagination.total_records || dataWithIndex.length);
+      setCurrentPage(pagination.page || page);
+      setPageSize(pagination.page_size || size);
     } catch (error) {
       message.error('Failed to fetch roles');
     } finally {
@@ -98,24 +111,37 @@ const UserRoles = () => {
     return filteredPermissions;
   }
 
+  // Initial data load effect - runs only once
   useEffect(() => {
-    fetchRoles();
-  }, []);
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+      const loadData = async () => {
+        setLoading(true);
+        try {
+          await fetchRoles(1, pageSize);
+        } catch (error) {
+          message.error('Failed to load roles data. Please try again.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadData();
+    }
+  }, [fetchRoles, pageSize]);
 
+  // Update all roles refreshes to use current page/size
   const handleSubmit = async (values) => {
     setSubmitLoading(true);
     try {
       const permissionsArray = Object.entries(values.permissions || {})
         .filter(([_, isChecked]) => isChecked)
         .map(([perm]) => perm);
-
       const formData = new FormData();
       formData.append('roles', values.name);
       formData.append('organization', user?.organization?.organization_id);
       permissionsArray.forEach((perm) => {
         formData.append('permissions', perm);
       });
-
       if (editingId) {
         await axios.post(`${API_URL}/modify_role/${editingId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -127,11 +153,10 @@ const UserRoles = () => {
         });
         message.success('Role created successfully');
       }
-
       setIsModalOpen(false);
       form.resetFields();
       setEditingId(null);
-      fetchRoles();
+      await fetchRoles(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Operation failed');
     } finally {
@@ -143,7 +168,7 @@ const UserRoles = () => {
     try {
       await axios.delete(`${API_URL}/modify_role/${id}`);
       message.success('Role deleted successfully');
-      fetchRoles();
+      await fetchRoles(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
@@ -403,6 +428,18 @@ const UserRoles = () => {
           loading={loading}
           rowKey="id"
           scroll={{ x: true }}
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+              fetchRoles(page, size);
+            },
+          }}
         />
 
         {(canCreate || canUpdate) && (

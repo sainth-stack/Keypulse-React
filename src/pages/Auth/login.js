@@ -2,8 +2,7 @@ import Logo from "../../assets/images/logo3.png";
 import loginbg from "../../assets/svg/loginbg1.png";
 import eye from "../../assets/svg/eye-fill.svg";
 import eye2 from "../../assets/svg/eye-slash.svg";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { LoadingIndicator } from "../../components/loader";
 import './styles.css'
 import axios from 'axios'
@@ -14,6 +13,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, B
 import { Email as EmailIcon } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { OtpPopup } from "../../components/OTPPopup";
+import { logAmplitudeEvent, setAmplitudeUserId } from '../../utils';
 
 export const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -32,25 +32,19 @@ export const Login = () => {
     try {
       const response = await axios.get(`${API_URL}/roles`);
       const permissions = [];
-      console.log(roles); // Debugging: ['super admin']
   
       response?.data?.roles?.forEach((item) => {
-        console.log(item); // Debugging: { id, role, permissions }
-        console.log(roles.includes(item.role), 'test'); // Debugging: Check if role matches
-  
-        // Normalize roles for comparison (optional, if case sensitivity is an issue)
         const normalizedItemRole = item.role.toLowerCase();
         const normalizedRoles = roles.map(role => role.toLowerCase());
   
         if (normalizedRoles.includes(normalizedItemRole)) {
-          permissions.push(...item.permissions); // Spread permissions to avoid nested arrays
+          permissions.push(...item.permissions);
         }
       });
   
-      console.log(permissions); // Debugging: Check final permissions array
-      localStorage.setItem('permissions', JSON.stringify(permissions)); // Store with a key
-      // --- Begin: Check for application permissions and redirect accordingly ---
-      // Define application permissions (should match Sidebar logic)
+      localStorage.setItem('permissions', JSON.stringify(permissions));
+      
+      // Check for application permissions and redirect accordingly
       const appPermissions = [
         'home_Read',
         'data_analysis_Read',
@@ -65,6 +59,7 @@ export const Login = () => {
         { path: '/users', prefix: 'users_' },
         { path: '/roles', prefix: 'roles_' },
       ];
+      
       const hasAppPermission = permissions.some(p => appPermissions.includes(p));
       if (!hasAppPermission) {
         const adminPath = adminPaths.find(ap => permissions.some(p => p.startsWith(ap.prefix)));
@@ -77,7 +72,7 @@ export const Login = () => {
       }
       navigate('/data-source');
       setLoading(false);
-      return permissions; // Return permissions if needed elsewhere
+      return permissions;
     } catch (error) {
       console.error('Error fetching roles:', error);
       setLoading(false);
@@ -86,12 +81,15 @@ export const Login = () => {
   };
 
   const handleLogin = async (event) => {
-    setLoading(true);
     event.preventDefault();
+    setLoading(true);
     
-    const formData = new URLSearchParams();
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
+    
+    logAmplitudeEvent('Login Attempt', { email: trimmedEmail });
+    
+    const formData = new URLSearchParams();
     formData.append('email', trimmedEmail);
     formData.append('password', trimmedPassword);
 
@@ -102,61 +100,52 @@ export const Login = () => {
         }
       });
       
-      console.log('Login Response:', response.data); // Debug: Check what we get from API
+      const userData = response.data?.user;
       
-      setLoading(false);
-      // Check for first-time login (last_login is null or empty)
-      if (!response.data?.user?.last_login) {
-        navigate(`/reset-password?email=${encodeURIComponent(response.data?.user?.email)}&user_id=${encodeURIComponent(response.data?.user?.id)}&first_time=true`);
-        return;
-      }
-      fetchRoles(response.data?.user?.role);
-      localStorage.setItem('user', JSON.stringify(response.data?.user));
-      localStorage.setItem('token', response.data?.user?.username);
-      localStorage.setItem('userName', response.data?.user?.username);
-      localStorage.setItem('logo',response.data?.user?.organization?.organization_logo)
-      // Store tenant information and setup session timeout
-      // Check for tenant data in response
+      // Log successful login
+      logAmplitudeEvent('Login Success', { 
+        email: trimmedEmail, 
+        first_time: false,
+        user_id: userData?.id,
+        organization: userData?.organization?.name,
+        role: userData?.role
+      });
+      
+      // Store user data
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', userData?.username);
+      localStorage.setItem('userName', userData?.username);
+      localStorage.setItem('logo', userData?.organization?.organization_logo);
+      
+      // Store tenant information
       const tenantData = {
-        tenant_id: response.data?.user?.tenant_id || 'default-tenant',
-        tenant_name: response.data?.user?.tenant_name || 'Default Tenant',
-        tenant_type: response.data?.user?.tenant_type || 'default',
-        tenant_timeout: response.data?.user?.tenant_timeout || 30 // Default 30 minutes
+        tenant_id: userData?.tenant_id || 'default-tenant',
+        tenant_name: userData?.tenant_name || 'Default Tenant',
+        tenant_type: userData?.tenant_type || 'default',
+        tenant_timeout: userData?.tenant_timeout || 30
       };
-      
-      console.log('Tenant Data:', tenantData); // Debug: Check tenant data
       localStorage.setItem('tenant', JSON.stringify(tenantData));
       
-      // Set session timeout based on tenant configuration
+      // Set session timeout
       const timeoutMinutes = tenantData.tenant_timeout;
       const sessionExpiryTime = Date.now() + (timeoutMinutes * 60 * 1000);
       localStorage.setItem('sessionExpiryTime', sessionExpiryTime.toString());
       
-      console.log('Session Expiry Time:', new Date(sessionExpiryTime)); // Debug: Check expiry time
-      
-      // Initialize session monitoring using the session manager
+      // Initialize session management
       try {
-        console.log('Initializing session manager...'); // Debug
         sessionManager.initializeSessionTimeout();
-        console.log('Session manager initialized successfully!'); // Debug
-        
-        // Create session tracking
-        await sessionManager.createSession(response.data?.user);
-        console.log('Session tracking created successfully!'); // Debug
+        await sessionManager.createSession(userData);
       } catch (error) {
         console.error('Error initializing session manager:', error);
       }
       
-      // Call the new API to get the file name, passing user id in header
-      const userId = response.data?.user?.id;
-      if (userId) {
+      // Get file name
+      if (userData?.id) {
         try {
           const res = await axios.get(`${API_URL}/get_file_name`, {
-            headers: {
-              'X-User-ID': userId,
-            }
+            headers: { 'X-User-ID': userData.id }
           });
-          if (res.data && res.data.file_name) {
+          if (res.data?.file_name) {
             localStorage.setItem('fileName', res.data.file_name);
           }
         } catch (err) {
@@ -164,28 +153,58 @@ export const Login = () => {
         }
       }
       
+      // Fetch roles and navigate
+      await fetchRoles(userData?.role);
+      
     } catch (err) {
-      setLoading(false);
-      console.log(err);
+      logAmplitudeEvent('Login Failure', { 
+        email: trimmedEmail, 
+        error: err?.response?.data?.message || err?.message || 'Unknown error',
+        status_code: err?.response?.status 
+      });
       alert("Login failed. Please check your credentials and try again.");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleResetClick = () => {
+    logAmplitudeEvent('Reset Password Clicked');
+    setShowResetModal(true);
   };
 
   const handleSendReset = async () => {
     setResetLoading(true);
+    
+    logAmplitudeEvent('Reset Password Requested', { email: resetEmail });
+    
     try {
       const formData = new FormData();
       formData.append('email', resetEmail);
       await axios.post(`${API_URL}/send_otp`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      
       setShowResetModal(false);
-      setShowOtpModal(true); // Show OTP modal
+      setShowOtpModal(true);
+      
+      logAmplitudeEvent('OTP Sent Successfully', { email: resetEmail });
+      
     } catch (err) {
+      logAmplitudeEvent('OTP Send Failed', { 
+        email: resetEmail, 
+        error: err?.response?.data?.message || err?.message 
+      });
       toast.error('Failed to send OTP');
     } finally {
       setResetLoading(false);
     }
+  };
+
+  const handleOtpSuccess = async () => {
+    logAmplitudeEvent('OTP Verified Successfully', { email: resetEmail });
+    setShowOtpModal(false);
+    navigate(`/reset-password?email=${encodeURIComponent(resetEmail)}`);
   };
 
   return (
@@ -196,6 +215,7 @@ export const Login = () => {
         </div>
         <div className="row mt-3">
           <div className="col-md-9 col-lg-9 col-sm-12 col-xs-12 mx-auto">
+
             <h2 className="mb-5">Login</h2>
 
             <form onSubmit={handleLogin} className="pr-lg-5 pl-lg-5">
@@ -233,15 +253,21 @@ export const Login = () => {
                     className="eye3"
                     src={toggle2 ? eye2 : eye}
                     onClick={() => setToggle2(!toggle2)}
-                    alt="Logo"
+                    alt="Toggle Password"
                   />
                 </div>
               </div>
+              
               <div className="d-flex flex-row-reverse mb-4">
-                <span className="fs-12 cursor-pointer text-primary" style={{textDecoration:'underline',cursor:"pointer"}} onClick={() => setShowResetModal(true)}>
+                <span 
+                  className="fs-12 cursor-pointer text-primary" 
+                  style={{textDecoration:'underline', cursor:"pointer"}} 
+                  onClick={handleResetClick}
+                >
                   Forgot Password?
                 </span>
               </div>
+              
               <button
                 className="font-weight-bold text-uppercase w-100 text-white border-0 login2"
                 style={{
@@ -249,37 +275,43 @@ export const Login = () => {
                   borderRadius: "40px",
                   height: "40px",
                 }}
-                type={loading ? "button" : "submit"}
+                type="submit"
                 disabled={loading}
               >
-                {loading ? "Logging in..." : 'Login'} {loading ? <LoadingIndicator size={"1"} /> : null}
+                {loading ? (
+                  <>
+                    Logging in... <LoadingIndicator size={"1"} />
+                  </>
+                ) : 'Login'}
               </button>
             </form>
-            {/* <div className="account2 mt-2">Don't Have An Account?</div>
-            <Link to="/register" className="text-decoration-none register2">
-              <span>Register</span>
-            </Link> */}
           </div>
         </div>
       </div>
+      
       <div className="col-md-6 p-0 m-0 bg-biscuit text-center pt-4 pb-4 d-none d-lg-block">
-        <h5 className="text-green font-weight-bold mt-2" style={{fontWeight:700,fontSize:'28px'}}>WELCOME TO DATAPX1</h5>
-        {/* <h3 className="mt-3">Your Digital Growth Partner <br /> For Manufacturing</h3> */}
+        <h5 className="text-green font-weight-bold mt-2" style={{fontWeight:700,fontSize:'28px'}}>
+          WELCOME TO DATAPX1
+        </h5>
         <div className="d-flex justify-content-center">
           <div className="col-md-10" style={{borderRadius:'30px'}}>
-            <img className="img-fluid p-3" src={loginbg} alt="Logo" style={{borderRadius:'30px'}}/>
+            <img className="img-fluid p-3" src={loginbg} alt="Login Background" style={{borderRadius:'30px'}}/>
           </div>
         </div>
       </div>
+      
       <div style={{position:'fixed',bottom:20,width:'100%',textAlign:'center',color:'black',fontSize:'12px',fontWeight:'bold'}}>
         © All Rights Reserved, AI-PRIORI {new Date().getFullYear()}
       </div>
+      
       {/* Reset Password Modal */}
       <Dialog open={showResetModal} onClose={() => setShowResetModal(false)} maxWidth="xs" fullWidth PaperProps={{
         style: { borderRadius: 20, boxShadow: '0 8px 32px rgba(60,60,60,0.18)' }
       }}>
         <Paper elevation={0} style={{ borderRadius: 20, background: '#f8fafc' }}>
-          <DialogTitle style={{textAlign:'center', fontWeight:700, fontSize:22, letterSpacing:0.5, paddingBottom:0}}>Reset Password</DialogTitle>
+          <DialogTitle style={{textAlign:'center', fontWeight:700, fontSize:22, letterSpacing:0.5, paddingBottom:0}}>
+            Reset Password
+          </DialogTitle>
           <DialogContent style={{paddingTop:8, paddingBottom:0}}>
             <Box mb={2} color="#555" fontSize={15} textAlign="center">
               Enter your email address and we'll send you a link to reset your password.
@@ -306,23 +338,35 @@ export const Login = () => {
             />
           </DialogContent>
           <DialogActions style={{justifyContent:'space-between', padding:'20px 28px 24px 28px'}}>
-            <Button onClick={() => setShowResetModal(false)} disabled={resetLoading} style={{borderRadius:40, minWidth:100, fontWeight:600, color:'#466657', background:'#e8eaf6'}}>
+            <Button 
+              onClick={() => setShowResetModal(false)} 
+              disabled={resetLoading} 
+              style={{borderRadius:40, minWidth:100, fontWeight:600, color:'#466657', background:'#e8eaf6'}}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSendReset} disabled={!resetEmail || resetLoading} variant="contained" style={{background:'#466657', color:'#fff', borderRadius:40, minWidth:140, fontWeight:600, boxShadow:'0 2px 8px rgba(70,102,87,0.08)'}}>
-              {resetLoading ? <span style={{display:'flex',alignItems:'center'}}><span className="spinner-border spinner-border-sm" style={{marginRight:8}}></span>Sending...</span> : 'Send Link'}
+            <Button 
+              onClick={handleSendReset} 
+              disabled={!resetEmail || resetLoading} 
+              variant="contained" 
+              style={{background:'#466657', color:'#fff', borderRadius:40, minWidth:140, fontWeight:600, boxShadow:'0 2px 8px rgba(70,102,87,0.08)'}}
+            >
+              {resetLoading ? (
+                <span style={{display:'flex',alignItems:'center'}}>
+                  <span className="spinner-border spinner-border-sm" style={{marginRight:8}}></span>
+                  Sending...
+                </span>
+              ) : 'Send Link'}
             </Button>
           </DialogActions>
         </Paper>
       </Dialog>
+      
       {showOtpModal && (
         <OtpPopup
           email={resetEmail}
           onClose={() => setShowOtpModal(false)}
-          onSuccess={() => {
-            setShowOtpModal(false);
-            navigate(`/reset-password?email=${encodeURIComponent(resetEmail)}`);
-          }}
+          onSuccess={handleOtpSuccess}
         />
       )}
     </div>

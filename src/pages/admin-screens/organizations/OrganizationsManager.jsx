@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -27,25 +27,38 @@ const OrganizationsManager = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [file, setFile] = useState(null);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const initialLoadRef = useRef(false);
   const user = JSON.parse(localStorage.getItem('user') || "{}");
   const permissions = JSON.parse(localStorage.getItem('permissions') || '[]') || [];
 
-  const fetchOrganizations = async () => {
+  // Updated fetchOrganizations for pagination
+  const fetchOrganizations = async (page = currentPage, size = pageSize) => {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/organizations`, {
         params: {
-          tenant_id: !isSuperAdmin() ? user?.tenant?.tenant_id : ''
+          tenant_id: !isSuperAdmin() ? user?.tenant?.tenant_id : '',
+          page,
+          page_size: size,
         }
       });
-      const dataWithIndex = response?.data?.organizations?.map((org, index) => ({
+      const orgsData = response?.data?.organizations || [];
+      const pagination = response?.data?.pagination || {};
+      const dataWithIndex = orgsData.map((org, index) => ({
         ...org,
-        tenant: org?.tenant['Tenant Name'],
+        tenant: org?.tenant?.['Tenant Name'],
         key: org.id,
-        sno: index + 1,
+        sno: (pagination.page - 1) * (pagination.page_size) + index + 1,
         logo: org.logo_data ? `${org.logo_data}` : null
       }));
       setOrganizations(dataWithIndex);
+      setTotal(pagination.total_records);
+      setCurrentPage(pagination.page);
+      setPageSize(pagination.page_size);
     } catch (error) {
       message.error('Failed to fetch organizations');
     } finally {
@@ -67,9 +80,23 @@ const OrganizationsManager = () => {
     }
   };
 
+  // Initial data load effect - runs only once
   useEffect(() => {
-    fetchOrganizations();
-  }, []);
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+      const loadData = async () => {
+        setLoading(true);
+        try {
+          await fetchOrganizations(1, pageSize);
+        } catch (error) {
+          message.error('Failed to load organizations data. Please try again.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadData();
+    }
+  }, [fetchOrganizations, pageSize]);
 
   const handleSubmit = async (values) => {
     console.log(values,'valusdfdses')
@@ -116,7 +143,7 @@ const OrganizationsManager = () => {
       form.resetFields();
       setEditingId(null);
       setFile(null);
-      fetchOrganizations(tenants);
+      await fetchOrganizations(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Operation failed');
     } finally {
@@ -128,7 +155,7 @@ const OrganizationsManager = () => {
     try {
       await axios.delete(`${API_URL}/organizations/${id}`);
       message.success('Organization deleted successfully');
-      fetchOrganizations(tenants);
+      await fetchOrganizations(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
@@ -249,6 +276,18 @@ const OrganizationsManager = () => {
           dataSource={organizations}
           loading={loading}
           rowKey="id"
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+              fetchOrganizations(page, size);
+            },
+          }}
         />
 
         {(canCreate || canUpdate) && (

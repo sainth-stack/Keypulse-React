@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -22,20 +22,38 @@ const TenantsManager = () => {
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  // Ref for initial load
+  const initialLoadRef = useRef(false);
 
   const permissions = JSON.parse(localStorage.getItem('permissions') || {});
 
 
-  const fetchTenants = async () => {
+  // Updated fetchTenants for pagination
+  const fetchTenants = async (page = currentPage, size = pageSize) => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/tenants`);
-      const dataWithIndex = response?.data?.tenants?.map((tenant, index) => ({
+      const response = await axios.get(`${API_URL}/tenants`, {
+        params: {
+          page,
+          page_size: size,
+        },
+      });
+      // Support both paginated and non-paginated responses
+      const tenantsData = response?.data?.tenants || [];
+      const pagination = response?.data?.pagination || {};
+      const processedTenants = tenantsData.map((tenant, index) => ({
         ...tenant,
         key: tenant.id,
-        sno: index + 1
+        sno: (pagination.page - 1) * (pagination.page_size) + index + 1,
       }));
-      setTenants(dataWithIndex);
+      setTenants(processedTenants);
+      setTotal(pagination.total_records);
+      setCurrentPage(pagination.page);
+      setPageSize(pagination.page_size);
     } catch (error) {
       message.error('Failed to fetch tenants');
     } finally {
@@ -43,10 +61,25 @@ const TenantsManager = () => {
     }
   };
 
+  // Initial data load effect - runs only once
   useEffect(() => {
-    fetchTenants();
-  }, []);
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+      const loadData = async () => {
+        setLoading(true);
+        try {
+          await fetchTenants(1, pageSize);
+        } catch (error) {
+          message.error('Failed to load tenants data. Please try again.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadData();
+    }
+  }, [fetchTenants, pageSize]);
 
+  // Update all tenant refreshes to use current page/size
   const handleSubmit = async (values) => {
     setSubmitLoading(true);
     try {
@@ -70,11 +103,10 @@ const TenantsManager = () => {
         });
         message.success('Tenant created successfully');
       }
-      
       setIsModalOpen(false);
       form.resetFields();
       setEditingId(null);
-      fetchTenants();
+      await fetchTenants(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Operation failed');
     } finally {
@@ -86,7 +118,7 @@ const TenantsManager = () => {
     try {
       await axios.delete(`${API_URL}/tenants/${id}`);
       message.success('Tenant deleted successfully');
-      fetchTenants();
+      await fetchTenants(currentPage, pageSize);
     } catch (error) {
       message.error(error.response?.data?.message || 'Delete failed');
     }
@@ -184,6 +216,19 @@ const TenantsManager = () => {
           dataSource={tenants}
           loading={loading}
           rowKey="id"
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            showSizeChanger: true,
+            // Removed showQuickJumper for consistency
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+              fetchTenants(page, size);
+            },
+          }}
         />
 
         {(canCreate || canUpdate) && (

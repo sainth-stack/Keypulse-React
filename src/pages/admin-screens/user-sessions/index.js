@@ -32,13 +32,26 @@ const UserSessions = () => {
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  
+  // Users state with infinite scroll
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersHasMore, setUsersHasMore] = useState(true);
+  const [usersPage, setUsersPage] = useState(1);
+  
+  // Organizations state with infinite scroll
   const [organizations, setOrganizations] = useState([]);
+  const [orgsLoading, setOrgsLoading] = useState(false);
+  const [orgsHasMore, setOrgsHasMore] = useState(true);
+  const [orgsPage, setOrgsPage] = useState(1);
+  
   const [filterParams, setFilterParams] = useState({
-    userId: '',
-    orgId: '',
+    userId: undefined,
+    orgId: undefined,
     dateRange: [],
   });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 25, total: 0 });
+  const [sorterState, setSorterState] = useState({ columnKey: 'loginTime', order: 'descend' });
 
   // Debug initial state
   useEffect(() => {
@@ -54,14 +67,14 @@ const UserSessions = () => {
   const canUpdate = userPermissions.includes("sessions_Write");
   const canDelete = userPermissions.includes("sessions_Delete");
 
-  // Fetch sessions
+  // Fetch sessions with correct pagination handling
   const fetchSessions = async () => {
     setLoading(true);
     try {
       let params = {};
       
       if (!isSuperAdmin()) {
-        params.orgId = user?.organization?.organization_id;
+        params.orgID = user?.organization?.organization_id;
       } else {
         if (filterParams.orgId) {
           params.orgId = filterParams.orgId;
@@ -88,17 +101,33 @@ const UserSessions = () => {
         });
       }
 
+      // Server-side pagination and sorting
+      params.page = pagination.current;
+      params.limit = pagination.pageSize;
+      if (sorterState?.columnKey === 'loginTime') {
+        params.sortBy = 'loginTime';
+        params.sortOrder = sorterState.order === 'ascend' ? 'asc' : 'desc';
+      }
+
       console.log('API Call Params:', params);
       const response = await axios.get(`${API_URL}/sessions`, {
         params
       });
 
-      const dataWithIndex = response.data.sessions.map((session, index) => ({
+      const sessionsArray = response?.data?.sessions || response?.data?.data || [];
+      // Fix pagination total calculation based on API response structure
+      const apiTotal = response?.data?.pagination?.total_records || 
+                      response?.data?.total || 
+                      response?.data?.count || 
+                      sessionsArray.length;
+
+      const dataWithIndex = sessionsArray.map((session, index) => ({
         ...session,
         key: session.id,
-        sno: index + 1,
+        sno: (pagination.current - 1) * pagination.pageSize + index + 1,
       }));
       setSessions(dataWithIndex);
+      setPagination(prev => ({ ...prev, total: apiTotal }));
     } catch (error) {
       message.error('Failed to fetch sessions');
     } finally {
@@ -106,59 +135,111 @@ const UserSessions = () => {
     }
   };
 
-  // Fetch users for filter dropdown
-  // const fetchUsers = async () => {
-  //   try {
-  //     const response = await axios.get('http://54.169.213.200:4003/api/users');
-  //     setUsers(response.data.users);
-  //   } catch (error) {
-  //     message.error('Failed to fetch users');
-  //   }
-  // };
-
-
-  // Fetch users
-  const fetchUsers = async () => {
+  // Fetch users with infinite scroll support
+  const fetchUsers = async (page = 1, reset = false) => {
+    if (usersLoading) return;
+    
+    setUsersLoading(true);
     try {
       const response = await axios.get(`${API_URL}/users`, {
         params: {
-          organization_id: !isSuperAdmin() ? user?.organization?.organization_id : ''
+          organization_id: !isSuperAdmin() ? user?.organization?.organization_id : '',
+          page: page,
+          limit: 50 // Load 50 users at a time
         }
       });
-      const data=isSuperAdmin()?response?.data:response?.data?.users
-      const dataWithIndex = data?.map((user, index) => ({
+      
+      // Updated for new API response structure
+      const usersArray = response?.data?.users || [];
+      const newUsers = usersArray.map((user, index) => ({
         ...user,
         key: user.id,
-        sno: index + 1,
-      }));
-      setUsers(dataWithIndex);
+        sno: ((page - 1) * 50) + index + 1,
+        name: user.username, // Map username to name for display
+        email: user.email,
+      })) || [];
+
+      if (reset) {
+        setUsers(newUsers);
+      } else {
+        setUsers(prev => [...prev, ...newUsers]);
+      }
+
+      // Check if there are more users to load based on pagination
+      const pagination = response?.data?.pagination;
+      const hasMore = pagination ? (pagination.page < pagination.total_pages) : (newUsers.length === 50);
+      setUsersHasMore(hasMore);
+      setUsersPage(page);
     } catch (error) {
       message.error('Failed to fetch users');
+    } finally {
+      setUsersLoading(false);
     }
   };
 
-  // Fetch organizations for filter dropdown (only for super admin)
-  const fetchOrganizations = async () => {
-    if (isSuperAdmin()) {
-      try {
-        const response = await axios.get(`${API_URL}/organizations`);
-        setOrganizations(response.data.organizations);
-      } catch (error) {
-        message.error('Failed to fetch organizations');
+  // Fetch organizations with infinite scroll support (only for super admin)
+  const fetchOrganizations = async (page = 1, reset = false) => {
+    if (!isSuperAdmin() || orgsLoading) return;
+    
+    setOrgsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/organizations`, {
+        params: {
+          page: page,
+          limit: 50 // Load 50 organizations at a time
+        }
+      });
+      
+      const newOrgs = response?.data?.organizations?.map((org, index) => ({
+        ...org,
+        key: org.id,
+        sno: ((page - 1) * 50) + index + 1,
+      })) || [];
+
+      if (reset) {
+        setOrganizations(newOrgs);
+      } else {
+        setOrganizations(prev => [...prev, ...newOrgs]);
       }
+
+      // Check if there are more organizations to load
+      const hasMore = newOrgs.length === 50;
+      setOrgsHasMore(hasMore);
+      setOrgsPage(page);
+    } catch (error) {
+      message.error('Failed to fetch organizations');
+    } finally {
+      setOrgsLoading(false);
+    }
+  };
+
+  // Handle infinite scroll for users dropdown
+  const handleUsersScroll = (e) => {
+    const { target } = e;
+    if (target.scrollTop + target.offsetHeight === target.scrollHeight && usersHasMore && !usersLoading) {
+      fetchUsers(usersPage + 1, false);
+    }
+  };
+
+  // Handle infinite scroll for organizations dropdown
+  const handleOrgsScroll = (e) => {
+    const { target } = e;
+    if (target.scrollTop + target.offsetHeight === target.scrollHeight && orgsHasMore && !orgsLoading) {
+      fetchOrganizations(orgsPage + 1, false);
     }
   };
 
   // Initial load - fetch users and organizations once
   useEffect(() => {
-    fetchUsers();
-    fetchOrganizations();
+    fetchUsers(1, true);
+    fetchOrganizations(1, true);
   }, []);
 
   // Fetch sessions when filters change
   useEffect(() => {
     fetchSessions();
-  }, [filterParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterParams, pagination.current, pagination.pageSize, sorterState]);
 
   // Handle form submission
   const handleSubmit = async (values) => {
@@ -227,16 +308,20 @@ const UserSessions = () => {
       console.log('New Filter Params:', newParams);
       return newParams;
     });
+    // Reset pagination to first page when filters change
+    setPagination(prev => ({ ...prev, current: 1 }));
   };
 
   // Reset filters
   const resetFilters = () => {
     console.log('Resetting filters');
     setFilterParams({
-      userId: '',
-      orgId: '',
+      userId: undefined,
+      orgId: undefined,
       dateRange: [],
     });
+    setPagination(prev => ({ ...prev, current: 1 }));
+    setSorterState({ columnKey: 'loginTime', order: 'descend' });
   };
 
   const openCreateModal = () => {
@@ -263,6 +348,23 @@ const UserSessions = () => {
   };
 
   // Memoized table columns
+  const isPrivateIp = (ip) => {
+    if (!ip || typeof ip !== 'string') return false;
+    // 10.0.0.0/8
+    if (/^10\./.test(ip)) return true;
+    // 172.16.0.0 – 172.31.255.255
+    const m172 = ip.match(/^172\.(\d{1,3})\./);
+    if (m172) {
+      const second = parseInt(m172[1], 10);
+      if (second >= 16 && second <= 31) return true;
+    }
+    // 192.168.0.0/16
+    if (/^192\.168\./.test(ip)) return true;
+    // localhost
+    if (/^(127\.|::1)/.test(ip)) return true;
+    return false;
+  };
+
   const columns = useMemo(() => [
     {
       title: 'S.No',
@@ -287,23 +389,29 @@ const UserSessions = () => {
       title: 'Organization',
       dataIndex: 'orgId',
       key: 'orgId',
-      render: (orgId) => organizations.find(org => org.id === orgId)?.name || orgId,
+      render: (text, record) => {
+        return record.orgName || 'N/A';
+      },
       sorter: (a, b) => {
-        const orgA = organizations.find(org => org.id === a.orgId)?.name || '';
-        const orgB = organizations.find(org => org.id === b.orgId)?.name || '';
+        const orgA = a.orgName || '';
+        const orgB = b.orgName || '';
         return orgA.localeCompare(orgB);
       },
     },
     {
-      title: 'Session Time',
-      key: 'sessionTime',
-      render: (_, record) => (
-        <div>
-          <div>Login: {moment(record.loginTime).format('YYYY-MM-DD HH:mm')}</div>
-          <div>Logout: {record.logoutTime ? moment(record.logoutTime).format('YYYY-MM-DD HH:mm') : 'Active'}</div>
-        </div>
-      ),
-      sorter: (a, b) => new Date(a.loginTime) - new Date(b.loginTime),
+      title: 'Login Time',
+      dataIndex: 'loginTime',
+      key: 'loginTime',
+      render: (value) => moment(value).format('YYYY-MM-DD HH:mm'),
+      sorter: true,
+      sortOrder: sorterState?.columnKey === 'loginTime' ? sorterState?.order : null,
+    },
+    {
+      title: 'Logout Time',
+      dataIndex: 'logoutTime',
+      key: 'logoutTime',
+      render: (value) => value ? moment(value).format('YYYY-MM-DD HH:mm') : 'Active',
+      sorter: (a, b) => new Date(a.logoutTime || 0) - new Date(b.logoutTime || 0),
     },
     {
       title: 'Device Info',
@@ -315,6 +423,7 @@ const UserSessions = () => {
       title: 'IP Address',
       dataIndex: 'ipAddress',
       key: 'ipAddress',
+      render: (ip) => (isPrivateIp(ip) ? 'Unknown' : ip),
       sorter: (a, b) => (a.ipAddress || '').localeCompare(b.ipAddress || ''),
     },
     {
@@ -377,7 +486,26 @@ const UserSessions = () => {
         </Space>
       ),
     },
-  ], [organizations, canUpdate, canDelete]);
+  ], [organizations, canUpdate, canDelete, sorterState]);
+
+  // Handle table changes including pagination
+  const handleTableChange = (tablePagination, _filters, sorter) => {
+    console.log('Table Change:', { tablePagination, sorter });
+    
+    // Update pagination
+    setPagination(prev => ({ 
+      ...prev, 
+      current: tablePagination.current, 
+      pageSize: tablePagination.pageSize 
+    }));
+    
+    // Update sorting
+    if (sorter && sorter.columnKey) {
+      setSorterState({ columnKey: sorter.columnKey, order: sorter.order });
+    } else {
+      setSorterState({ columnKey: 'loginTime', order: 'descend' });
+    }
+  };
 
   return (
     <ConfigProvider
@@ -399,8 +527,24 @@ const UserSessions = () => {
                 style={{ width: '100%' }}
                 placeholder="Select User"
                 allowClear
+                showSearch
                 value={filterParams?.userId || null}
                 onChange={(value) => handleFilterChange('userId', value)}
+                onPopupScroll={handleUsersScroll}
+                loading={usersLoading}
+                filterOption={(input, option) =>
+                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                }
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    {usersLoading && (
+                      <div style={{ textAlign: 'center', padding: '8px' }}>
+                        <Spin size="small" />
+                      </div>
+                    )}
+                  </>
+                )}
               >
                 {users?.map(user => (
                   <Option key={user.id} value={user.id}>
@@ -415,8 +559,24 @@ const UserSessions = () => {
                   style={{ width: '100%' }}
                   placeholder="Select Organization"
                   allowClear
+                  showSearch
                   value={filterParams.orgId || null}
                   onChange={(value) => handleFilterChange('orgId', value)}
+                  onPopupScroll={handleOrgsScroll}
+                  loading={orgsLoading}
+                  filterOption={(input, option) =>
+                    option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                  }
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      {orgsLoading && (
+                        <div style={{ textAlign: 'center', padding: '8px' }}>
+                          <Spin size="small" />
+                        </div>
+                      )}
+                    </>
+                  )}
                 >
                   {organizations.map(org => (
                     <Option key={org.id} value={org.id}>{org.name}</Option>
@@ -461,6 +621,16 @@ const UserSessions = () => {
           loading={loading}
           rowKey="id"
           scroll={{ x: true }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '25', '50', '100'],
+            // Removed showQuickJumper (goto page) as requested
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+          }}
+          onChange={handleTableChange}
           expandable={{
             expandedRowRender: (record) => (
               <Descriptions bordered column={2}>
@@ -472,8 +642,11 @@ const UserSessions = () => {
                 <Descriptions.Item label="Logout Time">
                   {record.logoutTime ? moment(record.logoutTime).format('YYYY-MM-DD HH:mm:ss') : 'Still active'}
                 </Descriptions.Item>
-                <Descriptions.Item label="IP Address">{record.ipAddress}</Descriptions.Item>
+                <Descriptions.Item label="IP Address">{isPrivateIp(record.ipAddress) ? 'Unknown' : record.ipAddress}</Descriptions.Item>
                 <Descriptions.Item label="Device Info">{record.deviceInfo}</Descriptions.Item>
+                <Descriptions.Item label="Duration">
+                  {record.durationMinutes ? `${record.durationMinutes.toFixed(2)} minutes` : 'Active session'}
+                </Descriptions.Item>
               </Descriptions>
             ),
             rowExpandable: (record) => true,

@@ -6,10 +6,29 @@ import reportWebVitals from './reportWebVitals';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle";
 import "font-awesome/css/font-awesome.min.css";
+import { setAmplitudeUserId } from './utils';
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
     <App />
 );
+
+const userObj = localStorage.getItem('user');
+if (userObj) {
+  try {
+    const user = JSON.parse(userObj);
+    if (user && user.email) {
+      const userIdStr = user.email;
+      if (userIdStr.length >= 5) {
+        setAmplitudeUserId(userIdStr);
+      } else {
+        console.warn('[Amplitude] Not setting userId: invalid id', userIdStr);
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+}
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

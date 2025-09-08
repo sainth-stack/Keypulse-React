@@ -5,6 +5,7 @@ import axios from 'axios';
 import { LoadingIndicator } from '../../components/loader';
 import './index.css';
 import { Tabs, Tab, Box, FormControl, Select, MenuItem, InputLabel } from '@mui/material';
+import { logAmplitudeEvent } from '../../utils';
 
 const MissingValues = () => {
     const [fileKeys, setFileKeys] = useState([]);
@@ -56,6 +57,19 @@ const MissingValues = () => {
                 setFileKeys(files);
                 setSelectedFile(files[0] || null);
                 setFileData(fileDataObj);
+                // Log Amplitude event after data is loaded
+                if (window && window.amplitude) {
+                  // Calculate missing rows for each file
+                  const missingRows = files.map(f => {
+                    const df = fileDataObj[f]?.df || [];
+                    const count = df.filter(row => Object.values(row).some(cell => cell.is_imputed === "True")).length;
+                    return { file: f, missingRows: count };
+                  });
+                  logAmplitudeEvent('Missing Values Viewed', {
+                    fileNames: files,
+                    missingRows
+                  });
+                }
             } catch (error) {
                 console.error('Error fetching data:', error);
             } finally {

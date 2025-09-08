@@ -7,6 +7,7 @@ import { CopyOutlined } from '@ant-design/icons';
 import Bot from '../bot';
 import { API_URL } from '../../const';
 import { LoadingIndicator } from '../../components/loader';
+import { logAmplitudeEvent } from '../../utils';
 
 const Bot2 = () => {
   const [message, setMessage] = useState('');
@@ -65,6 +66,11 @@ const Bot2 = () => {
 
   // On mount, show 'describe the data' response (from cache or API)
   useEffect(() => {
+    // Log Home Opened event on mount
+    const fileName = typeof file === 'string' ? file : (file?.name || '');
+    if (window && window.amplitude) {
+      logAmplitudeEvent('Home Opened', { fileName });
+    }
     const cached = localStorage.getItem('describeDataCache');
     const cachedFileName = localStorage.getItem('describeDataCacheFileName');
     console.log(file,cachedFileName,'cached');
@@ -144,6 +150,11 @@ const Bot2 = () => {
     
     if (!message.trim()) return;
 
+    const fileName = typeof file === 'string' ? file : (file?.name || '');
+    // Log Query Asked event
+    if (window && window.amplitude) {
+      logAmplitudeEvent('Query Asked', { query: message, fileName });
+    }
     setMessages(prev => [...prev, { 
       type: 'user', 
       content: message,
@@ -185,7 +196,10 @@ const Bot2 = () => {
         code:data?.code || "Not Found",
         data:data?.data ? JSON.parse(data?.data):""
       }]));
-    
+      // Log Query Answered event
+      if (window && window.amplitude) {
+        logAmplitudeEvent('Query Answered', { query: message, answer: data?.text_output || data?.text_pre_code_response, fileName });
+      }
       setRecentChats(prev => [...prev, { question: message, answer: data?.result }]);
     
       if (messageType === 'graph') {

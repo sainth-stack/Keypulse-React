@@ -5,6 +5,7 @@ import { API_URL } from '../../const';
 import Plot from 'react-plotly.js';
 import { LoadingIndicator } from '../../components/loader';
 import { Tabs, Tab, Box, Paper } from '@mui/material';
+import { logAmplitudeEvent } from '../../utils';
 
 const DataAnalysis = () => {
   const location = useLocation();
@@ -37,6 +38,16 @@ const DataAnalysis = () => {
           const fileKeys = Object.keys(data.data);
           if (fileKeys.length > 0) {
             setSelectedFile(fileKeys[0]);
+          }
+          // Log Amplitude event with file names and summary
+          if (window && window.amplitude) {
+            logAmplitudeEvent('Data Analysis Viewed', {
+              fileNames: fileKeys,
+              summary: fileKeys.map(key => ({
+                file: key,
+                ...data.data[key]
+              }))
+            });
           }
         }
       } catch (error) {

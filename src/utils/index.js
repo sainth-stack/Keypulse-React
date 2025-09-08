@@ -1,15 +1,17 @@
 import React, { useState } from "react"
 import { ApexChart } from "../components/ApexBarChart"
 import { RxCross2 } from 'react-icons/rx'
+
 export const getData = (list, color) => {
     return <ul style={{ listStyle: "none" }} className='p-0 m-0 ps-1'>
         {
-            list.map((item) => {
-                return <li className='m-0 p-0' style={{ fontFamily: "poppins", fontWeight: 400, fontSize: '12px', width: '190px' }}>- {item}</li>
+            list.map((item, index) => {
+                return <li key={index} className='m-0 p-0' style={{ fontFamily: "poppins", fontWeight: 400, fontSize: '12px', width: '190px' }}>- {item}</li>
             })
         }
     </ul>
 }
+
 export const getTitle = (title, color, handleClosr) => {
     const handleClose = (e) => {
         e.stopPropagation();
@@ -22,7 +24,6 @@ export const getTitle = (title, color, handleClosr) => {
             </h5>
             <RxCross2 cursor={"pointer"} color="" onClick={(e) => handleClose(e)} />
         </div>
-
     )
 }
 
@@ -43,14 +44,12 @@ export const GetOdometer = (data, opt, height = 150, hoverText) => {
                 } else return "#ffbf00"
             }
         ],
-
         plotOptions: {
             radialBar: {
                 hollow: {
                     margin: 15,
                     size: "60%"
                 },
-
                 dataLabels: {
                     showOn: "always",
                     name: {
@@ -73,34 +72,31 @@ export const GetOdometer = (data, opt, height = 150, hoverText) => {
             lineCap: "round",
         },
     }
-    return (<div style={{ display: "flex", justifyContent: "start" }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-        <ApexChart series={data} options={opt ? opt : options} type='radialBar' height={height} width={""} />
-        {hover && hoverText && <div className="card" style={{ position: "absolute", padding: "10px", display: "flex", justifyContent: "center", alignItems: "center", marginTop: "20px", width: '200px', marginLeft: "-30px" }}>
-            <span style={{ fontFamily: 'Inter', marginTop: '5px', fontSize: '12px', lineHeight: '14px', fontWeight: 500, textAlign: "center" }}> {hoverText}</span>
-        </div>}
-    </div>)
+    return (
+        <div style={{ display: "flex", justifyContent: "start" }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+            <ApexChart series={data} options={opt ? opt : options} type='radialBar' height={height} width={""} />
+            {hover && hoverText && <div className="card" style={{ position: "absolute", padding: "10px", display: "flex", justifyContent: "center", alignItems: "center", marginTop: "20px", width: '200px', marginLeft: "-30px" }}>
+                <span style={{ fontFamily: 'Inter', marginTop: '5px', fontSize: '12px', lineHeight: '14px', fontWeight: 500, textAlign: "center" }}> {hoverText}</span>
+            </div>}
+        </div>
+    )
 }
-
 
 export const options3 = {
     chart: {
-        // height: '400px',
-        // width:'100px',
         type: 'bar'
     },
-
     colors: [
         "#faa93e",
         "#427ae3"
     ],
     plotOptions: {
         bar: {
-            columnWidth: '5px',
+            columnWidth: '40%',
             horizontal: false,
             borderRadius: 0,
             borderRadiusApplication: 'around',
             borderRadiusWhenStacked: 'last',
-            columnWidth: '40%',
             barHeight: '50%',
             distributed: false,
             rangeBarOverlap: true,
@@ -118,19 +114,17 @@ export const options3 = {
     grid: {
         show: false
     },
-
     dataLabels: {
         style: {
             fontSize: '12px',
             colors: [
                 "#faa93e",
                 "#427ae3"
-            ],        },
+            ],        
+        },
         offsetY: -20,
         formatter: function (val, opt) {
-            const goals =
-                opt.w.config.series[opt.seriesIndex].data[opt.dataPointIndex]
-                    .goals
+            const goals = opt.w.config.series[opt.seriesIndex].data[opt.dataPointIndex].goals
             return `${val}`
         }
     },
@@ -139,12 +133,9 @@ export const options3 = {
             text: 'Units'
         }
     },
-    // colors: colors
 }
 
-
-
-export const plantationData = (data, targetLine = false, value = "", color = "",name="Planned") => {
+export const plantationData = (data, targetLine = false, value = "", color = "", name = "Planned") => {
     const getData = (data) => {
         const finalData = data[0].data.map((item, index) => {
             return {
@@ -162,7 +153,7 @@ export const plantationData = (data, targetLine = false, value = "", color = "",
             name: name,
             data: months.map((item => {
                 return targetLine ? {
-                    x: item ,y: value, color: color
+                    x: item, y: value, color: color
                 } : {
                     x: item, y: max
                 }
@@ -176,14 +167,11 @@ export const plantationData = (data, targetLine = false, value = "", color = "",
     return finalData
 }
 
-
 export const customStyles = {
     container: provided => ({
         ...provided,
-        minWidth:250,
+        minWidth: 250,
         maxWidth: 300,
-        // zIndex: 9999999999,
-        // Ensure the dropdown is rendered above other elements
     }),
     valueContainer: (provided, state) => ({
         ...provided,
@@ -193,15 +181,95 @@ export const customStyles = {
     }),
     menuPortal: base => ({
         ...base,
-        zIndex: 99, // Ensure the dropdown is rendered above other elements
+        zIndex: 99,
     }),
     menu: (base) => ({
-        ...base, zIndex: 999, // Ensure the dropdown is rendered above other elements
+        ...base, 
+        zIndex: 999,
     }),
 };
 
-
-export const isSuperAdmin=()=>{
-    const user=JSON.parse(localStorage.getItem('user') || "{}")
+export const isSuperAdmin = () => {
+    const user = JSON.parse(localStorage.getItem('user') || "{}")
     return user?.role.includes('super admin')
+}
+
+// === Simplified Amplitude Integration ===
+// Since Amplitude is already initialized in index.html, we only need simple wrapper functions
+
+/**
+ * Log an event to Amplitude
+ */
+export async function logAmplitudeEvent(eventName, eventProps = {}) {
+    try {
+        if (!window.amplitude) {
+            console.warn('[Amplitude] SDK not available');
+            return false;
+        }
+
+        const cleanProps = {
+            ...eventProps,
+            timestamp: new Date().toISOString(),
+            page_url: window.location.href
+        };
+
+        window.amplitude.track(eventName, cleanProps);
+        console.log('[Amplitude] Event logged:', eventName, cleanProps);
+        return true;
+
+    } catch (error) {
+        console.error('[Amplitude] Error logging event:', error);
+        return false;
+    }
+}
+
+/**
+ * Set user ID
+ */
+export function setAmplitudeUserId(userId) {
+  try {
+      // More robust validation for Amplitude user ID requirements
+      if (!userId || typeof userId !== 'string') {
+          console.warn('[Amplitude] Not setting userId: invalid type', userId);
+          return false;
+      }
+      
+      // Trim whitespace and check length (Amplitude typically requires 5+ chars)
+      const cleanUserId = userId.trim();
+      if (cleanUserId.length < 5) {
+          console.warn('[Amplitude] Not setting userId: too short (< 5 chars)', cleanUserId);
+          return false;
+      }
+      
+      // Check if Amplitude is available
+      if (!window.amplitude) {
+          console.warn('[Amplitude] SDK not available');
+          return false;
+      }
+      console.log(cleanUserId,'cleanUserId')
+      // Set the user ID
+      window.amplitude.setUserId(cleanUserId);
+      console.log('[Amplitude] User ID set successfully:', cleanUserId);
+      return true;
+      
+  } catch (error) {
+      console.error('[Amplitude] Error setting user ID:', error);
+      return false;
+  }
+}
+
+/**
+ * Set user properties
+ */
+export function setAmplitudeUserProperties(userProperties) {
+    try {
+        if (window.amplitude) {
+            window.amplitude.identify(userProperties);
+            console.log('[Amplitude] User properties set:', userProperties);
+            return true;
+        }
+    } catch (error) {
+        console.error('[Amplitude] Error setting user properties:', error);
+    }
+    return false;
 }

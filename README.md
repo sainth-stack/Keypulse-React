@@ -68,3 +68,29 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Amplitude Analytics Setup
+
+This project uses [Amplitude](https://amplitude.com/) for analytics and session replay.
+
+### Initialization
+- The Amplitude SDK and Session Replay plugin are loaded in `public/index.html`.
+- Amplitude is initialized with the project API key and recommended options (`fetchRemoteConfig: true`, `autocapture: true`).
+- Session Replay is enabled for all sessions (adjust `sampleRate` in production if needed).
+
+### Page View Tracking
+- Page views are tracked automatically on every route change in `src/App.js` using a React effect and Amplitude's `logEvent` method.
+
+### Custom Event Tracking
+- To track custom events, use:
+  ```js
+  window.amplitude.getInstance().logEvent('Event Name', { property: 'value' });
+  ```
+- Replace `'Event Name'` and properties as needed for your use case.
+
+### Best Practices
+- Do not re-initialize Amplitude in React code; use the global instance.
+- For advanced usage, refer to the [Amplitude Browser SDK docs](https://amplitude.com/docs/sdks/analytics/browser/browser-sdk-2).
+
+### Verification
+- After deployment, verify events and session replays in the Amplitude dashboard.

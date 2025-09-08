@@ -2,13 +2,14 @@ import Logo from "../../assets/images/logo3.png";
 import loginbg from "../../assets/svg/loginbg1.png";
 import eye from "../../assets/svg/eye-fill.svg";
 import eye2 from "../../assets/svg/eye-slash.svg";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import './styles.css';
 import { Button, TextField, InputAdornment, IconButton, Paper, Box, Typography } from '@mui/material';
 import { toast } from 'react-toastify';
 import axios from "axios";
 import { API_URL } from "../../const";
+import { logAmplitudeEvent } from '../../utils';
 
 export const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -23,8 +24,10 @@ export const ResetPassword = () => {
   const user_id = params.get("user_id");
   const firstTime = params.get("first_time") === 'true';
 
+
   const handleReset = async (e) => {
     e.preventDefault();
+    logAmplitudeEvent('Reset Password Attempt', { email, firstTime });
     if (password !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
@@ -42,8 +45,10 @@ export const ResetPassword = () => {
         toast.success("Password reset successfully!");
       }
       navigate('/login');
+      logAmplitudeEvent('Reset Password Success', { email, firstTime });
     } catch (err) {
       toast.error("Failed to reset password");
+      logAmplitudeEvent('Reset Password Failure', { email, firstTime, error: err?.message || 'Unknown error' });
     } finally {
       setLoading(false);
     }

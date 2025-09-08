@@ -3,7 +3,7 @@ import Logo from "../../assets/images/logo3.png";
 import loginbg from "../../assets/svg/loginbg1.png";
 import eye from "../../assets/svg/eye-fill.svg";
 import eye2 from "../../assets/svg/eye-slash.svg";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { LoadingIndicator } from "../../components/loader";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +11,7 @@ import './styles.css'
 import axios from 'axios'
 import { OtpPopup } from "../../components/OTPPopup";
 import { API_URL } from "../../const";
+import { logAmplitudeEvent } from '../../utils';
 
 
 export const Register = () => {
@@ -25,8 +26,9 @@ export const Register = () => {
   const navigate = useNavigate();
 
   const Register = (event) => {
-    setLoading(true);
     event.preventDefault();
+    logAmplitudeEvent('Registration Attempt', { email });
+    setLoading(true);
     
     const formData = new URLSearchParams();
     formData.append('username', userName);
@@ -44,12 +46,14 @@ formData.append('organization',"7f0bd951-43c6-4f2f-9608-f34a8086dd0d")
     .then((response) => {
       setLoading(false);
       setRegisterData(response.data);
+      logAmplitudeEvent('Registration Success', { email });
       setShowOtpPopup(true);
+      logAmplitudeEvent('OTP Popup Shown', { email });
     })
     .catch((err) => {
       setLoading(false);
-      console.log(err);
       alert("Registration failed. Please try again.");
+      logAmplitudeEvent('Registration Failure', { email, error: err?.message || 'Unknown error' });
     });
   };
 

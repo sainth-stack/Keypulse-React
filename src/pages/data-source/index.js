@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { API_URL } from "../../const";
 import { CircularProgress } from '@mui/material';
-import { FaCloudUploadAlt, FaTrashAlt, FaPlus, FaCheck } from "react-icons/fa";
+import { FaCloudUploadAlt, FaTrashAlt, FaPlus, FaCheck, FaSearch, FaTimes } from "react-icons/fa";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
@@ -11,6 +11,7 @@ import { Box, Typography, Paper, ToggleButton, ToggleButtonGroup } from '@mui/ma
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
+import { logAmplitudeEvent } from '../../utils';
 
 const thumbnail = require('../../assets/images/dataThumbnail.jpeg');
 
@@ -22,12 +23,32 @@ export default function DataSource() {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const [showFileExistsModal, setShowFileExistsModal] = useState(false);
-  const [duplicateFiles, setDuplicateFiles] = useState([]); // Array of { file, action, newName, originalFile }
+  const [duplicateFiles, setDuplicateFiles] = useState([]);
   const [replaceLoading, setReplaceLoading] = useState(false);
   const [deletingFile, setDeletingFile] = useState(null);
-  const [selectedFiles, setSelectedFiles] = useState([]); // New state for multi-selection
-const userObj = localStorage.getItem('user');
-      const userId = userObj ? JSON.parse(userObj).id : null;
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  
+  // New states for pagination and view all modal
+  const [showViewAllModal, setShowViewAllModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredFiles, setFilteredFiles] = useState([]);
+  
+  const ITEMS_PER_PAGE = 5;
+  
+  const userObj = localStorage.getItem('user');
+  const userId = userObj ? JSON.parse(userObj).id : null;
+
+  // Filter files based on search term
+  useEffect(() => {
+    if (searchTerm) {
+      setFilteredFiles(files.filter(file => 
+        file.toLowerCase().includes(searchTerm.toLowerCase())
+      ));
+    } else {
+      setFilteredFiles(files);
+    }
+  }, [files, searchTerm]);
+
   // Fetch S3 files
   const fetchFiles = async () => {
     setLoading(true);
@@ -67,10 +88,17 @@ const userObj = localStorage.getItem('user');
 
   useEffect(() => {
     fetchFiles();
-    fetchUserSelectedFiles(); // Fetch and set selected files on mount
+    fetchUserSelectedFiles();
   }, []);
 
-  // Update checkFilesExist to match API response
+  // Fire Data Source Opened event with all file names when files are loaded
+  useEffect(() => {
+    if (files.length > 0 && window && window.amplitude) {
+      logAmplitudeEvent('Data Source Opened', { data: files });
+      console.log('[Amplitude] Data Source Opened event sent', files);
+    }
+  }, [files]);
+
   const checkFilesExist = async (files) => {
     const formData = new FormData();
     files.forEach(file => {
@@ -82,18 +110,15 @@ const userObj = localStorage.getItem('user');
       body: formData,
     });
     const data = await response.json();
-    // Return the files_status object directly
     return data.files_status || {};
   };
 
-  // Update handleFileChange to use new structure
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (!selectedFiles.length) return;
     setIsUploading(true);
 
     const statuses = await checkFilesExist(selectedFiles);
-    // Find all files that exist (status: true)
     const duplicates = selectedFiles.filter(file => statuses[file.name] && statuses[file.name].status);
 
     if (duplicates.length > 0) {
@@ -109,23 +134,20 @@ const userObj = localStorage.getItem('user');
       return;
     }
 
-    // If no duplicates, upload all files in one request
     await uploadFiles(selectedFiles);
     setIsUploading(false);
   };
 
-  // New: handle changes in duplicate modal
   const handleDuplicateActionChange = (idx, action) => {
     setDuplicateFiles(prev => prev.map((item, i) => i === idx ? { ...item, action } : item));
   };
+  
   const handleDuplicateNameChange = (idx, newName) => {
     setDuplicateFiles(prev => prev.map((item, i) => i === idx ? { ...item, newName } : item));
   };
 
-  // New: handle confirm for duplicates
   const handleConfirmDuplicates = async () => {
     setReplaceLoading(true);
-    // Prepare files with correct names
     const filesToUpload = duplicateFiles.map(item => {
       if (item.action === 'rename' && item.newName !== item.originalFile.name) {
         return new File([item.originalFile], item.newName, { type: item.originalFile.type });
@@ -144,12 +166,11 @@ const userObj = localStorage.getItem('user');
     setReplaceLoading(false);
   };
 
-  // Upload multiple files at once
   const uploadFiles = async (files) => {
     setIsUploading(true);
     const formData = new FormData();
     files.forEach(file => {
-      formData.append('file', file); // Use 'file' for each file, matching backend
+      formData.append('file', file);
     });
     try {
       const response = await fetch(`${API_URL}/file_upload/`, {
@@ -159,12 +180,16 @@ const userObj = localStorage.getItem('user');
       });
       if (!response.ok) throw new Error('File upload failed');
       toast.success('Files uploaded successfully!');
+      logAmplitudeEvent('File Upload', { userId, fileCount: files.length, fileNames: files.map(f => f.name) });
+      console.log('[Amplitude] File Upload event sent', files.map(f => f.name));
       fetchFiles();
       setShowFileExistsModal(false);
       setDuplicateFiles([]);
       setReplaceLoading(false);
     } catch (error) {
       toast.error('Failed to upload files. Please try again.');
+      logAmplitudeEvent('File Upload Failure', { userId, error: error?.message });
+      console.warn('[Amplitude] File Upload Failure event sent', error?.message);
     } finally {
       setIsUploading(false);
       setReplaceLoading(false);
@@ -175,9 +200,8 @@ const userObj = localStorage.getItem('user');
     fileInputRef.current.click();
   };
 
-  // Select file and update user file name, then navigate
   const handleFileSelect = async (fileName) => {
-    localStorage.setItem('fileName', fileName); // Store file name in localStorage
+    localStorage.setItem('fileName', fileName);
     try {
       const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
@@ -190,15 +214,18 @@ const userObj = localStorage.getItem('user');
       });
       if (!response.ok) throw new Error('Failed to update file name');
       toast.success('File selected!');
+      logAmplitudeEvent('File Selected', { userId, fileName });
+      console.log('[Amplitude] File Selected event sent', fileName);
       navigate('/');
     } catch (error) {
       toast.error('Failed to select file. Please try again.');
+      logAmplitudeEvent('File Select Failure', { userId, fileName, error: error?.message });
+      console.warn('[Amplitude] File Select Failure event sent', fileName, error?.message);
     }
   };
 
-  // Delete file (API endpoint needed)
   const handleDelete = async (fileName, e) => {
-    e.stopPropagation(); // Prevent file select
+    e.stopPropagation();
     setDeletingFile(fileName);
     try {
       const userObj = localStorage.getItem('user');
@@ -213,22 +240,29 @@ const userObj = localStorage.getItem('user');
       const data = await response.json();
       if (data.status) {
         toast.success('File deleted successfully!');
+        logAmplitudeEvent('File Delete', { userId, fileName });
+        console.log('[Amplitude] File Delete event sent', fileName);
         fetchFiles();
         if (selectedFile === fileName) {
           setSelectedFile(null);
           localStorage.removeItem('fileName');
         }
+        // Remove from selected files if it was selected
+        setSelectedFiles(prev => prev.filter(f => f !== fileName));
       } else {
         toast.error(data.message || 'Failed to delete file.');
+        logAmplitudeEvent('File Delete Failure', { userId, fileName, error: data.message });
+        console.warn('[Amplitude] File Delete Failure event sent', fileName, data.message);
       }
     } catch (error) {
       toast.error('Failed to delete file. Please try again.');
+      logAmplitudeEvent('File Delete Failure', { userId, fileName, error: error?.message });
+      console.warn('[Amplitude] File Delete Failure event sent', fileName, error?.message);
     } finally {
       setDeletingFile(null);
     }
   };
 
-  // Handle file card click to toggle selection
   const handleFileCardClick = (fileName) => {
     setSelectedFiles(prev =>
       prev.includes(fileName)
@@ -237,14 +271,12 @@ const userObj = localStorage.getItem('user');
     );
   };
 
-  // Submit selected files
   const handleSubmitSelectedFiles = async () => {
     if (selectedFiles.length === 0) {
       toast.error('Please select at least one file.');
       return;
     }
     try {
-      // Filter out selected files that no longer exist in the available files list
       const validSelectedFiles = selectedFiles.filter(fileName => files.includes(fileName));
       
       if (validSelectedFiles.length === 0) {
@@ -252,8 +284,11 @@ const userObj = localStorage.getItem('user');
         return;
       }
       
-      // Silently filter out unavailable files without showing warning
-      
+      // Log Amplitude event for submit
+      if (window && window.amplitude) {
+        logAmplitudeEvent('Data Source Submit', { data: validSelectedFiles });
+        console.log('[Amplitude] Data Source Submit event sent', validSelectedFiles);
+      }
       const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
       const formData = new FormData();
@@ -276,9 +311,25 @@ const userObj = localStorage.getItem('user');
     }
   };
 
+  // Get displayed files (first 5 for main view)
+  const displayedFiles = files.slice(0, ITEMS_PER_PAGE);
+  const hasMoreFiles = files.length > ITEMS_PER_PAGE;
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
+  // Handle view all modal close
+  const handleViewAllClose = () => {
+    setShowViewAllModal(false);
+    setSearchTerm('');
+  };
+
   return (
     <div className="data-source-container">
       <ToastContainer />
+      
       {/* File Exists Modal */}
       <Dialog open={showFileExistsModal} onClose={handleModalClose} maxWidth="sm" fullWidth>
         <DialogTitle>
@@ -352,8 +403,198 @@ const userObj = localStorage.getItem('user');
           </Button>
         </DialogActions>
       </Dialog>
-      <h1 className="data-source-title">Data Source</h1>
+
+      {/* View All Modal */}
+      <Dialog 
+        open={showViewAllModal} 
+        onClose={handleViewAllClose} 
+        maxWidth="lg" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '90vh',
+            maxHeight: '90vh',
+            borderRadius: 3,
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          position: 'relative',
+          py: 3
+        }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h5" fontWeight={600}>
+              All Files ({files.length})
+            </Typography>
+            <Button
+              onClick={handleViewAllClose}
+              sx={{ 
+                color: 'white',
+                minWidth: 'auto',
+                p: 1,
+                borderRadius: '50%',
+                '&:hover': { background: 'rgba(255,255,255,0.1)' }
+              }}
+            >
+              <FaTimes />
+            </Button>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {/* Search Bar */}
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '1px solid #e0e0e0',
+            background: '#fafafa'
+          }}>
+            <Box position="relative">
+              <TextField
+                fullWidth
+                placeholder="Search files..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                variant="outlined"
+                size="medium"
+                InputProps={{
+                  startAdornment: <FaSearch style={{ marginRight: 12, color: '#666' }} />,
+                  endAdornment: searchTerm && (
+                    <Button
+                      onClick={clearSearch}
+                      sx={{ 
+                        minWidth: 'auto',
+                        p: 0.5,
+                        color: '#666',
+                        '&:hover': { background: 'rgba(0,0,0,0.04)' }
+                      }}
+                    >
+                      <FaTimes />
+                    </Button>
+                  ),
+                  sx: {
+                    borderRadius: 2,
+                    background: 'white',
+                    '& fieldset': { borderColor: '#e0e0e0' },
+                    '&:hover fieldset': { borderColor: '#667eea' },
+                    '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                  }
+                }}
+              />
+            </Box>
+            {selectedFiles.length > 0 && (
+              <Box mt={2}>
+                <Typography variant="body2" color="primary" fontWeight={500}>
+                  {selectedFiles.length} file(s) selected
+                </Typography>
+              </Box>
+            )}
+          </Box>
+
+          {/* Files Grid in Modal */}
+          <Box sx={{ 
+            flex: 1, 
+            overflow: 'auto', 
+            p: 3,
+            background: '#f8f9fa'
+          }}>
+            {filteredFiles.length === 0 ? (
+              <Box 
+                display="flex" 
+                flexDirection="column" 
+                alignItems="center" 
+                justifyContent="center" 
+                height="300px"
+                sx={{ color: '#666' }}
+              >
+                <FaSearch style={{ fontSize: '3rem', marginBottom: 16, opacity: 0.3 }} />
+                <Typography variant="h6" gutterBottom>
+                  {searchTerm ? 'No files found' : 'No files available'}
+                </Typography>
+                <Typography variant="body2">
+                  {searchTerm ? 'Try adjusting your search terms' : 'Upload some files to get started'}
+                </Typography>
+              </Box>
+            ) : (
+              <div className="modal-file-grid">
+                {filteredFiles.map((file, idx) => (
+                  <div
+                    className={`modal-file-card ${selectedFiles.includes(file) ? 'selected' : ''}`}
+                    key={file}
+                    onClick={() => handleFileCardClick(file)}
+                  >
+                    {selectedFiles.includes(file) && (
+                      <div className="selected-indicator">
+                        <FaCheck className="check-icon" />
+                      </div>
+                    )}
+                    <div className="modal-thumbnail-wrapper">
+                      <img src={thumbnail} alt="thumbnail" className="modal-file-thumbnail" />
+                    </div>
+                    <div className="modal-file-name" title={file}>{file}</div>
+                    {deletingFile === file ? (
+                      <CircularProgress size={20} className="modal-delete-icon loading" />
+                    ) : (
+                      <FaTrashAlt
+                        className="modal-delete-icon"
+                        title="Delete file"
+                        onClick={e => handleDelete(file, e)}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ 
+          p: 3, 
+          borderTop: '1px solid #e0e0e0',
+          background: '#fafafa',
+          gap: 2
+        }}>
+          <Button onClick={handleViewAllClose} variant="outlined">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              handleSubmitSelectedFiles();
+              setShowViewAllModal(false);
+            }}
+            disabled={selectedFiles.length === 0}
+            variant="contained"
+            sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+              }
+            }}
+          >
+            Submit Selected ({selectedFiles.length})
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Main Content */}
+      <div className="header-section">
+        <h1 className="data-source-title">Data Source</h1>
+        <div className="stats-bar">
+          <div className="stat-item">
+            <span className="stat-number">{files.length}</span>
+            <span className="stat-label">Total Files</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">{selectedFiles.length}</span>
+            <span className="stat-label">Selected</span>
+          </div>
+        </div>
+      </div>
+
       <div className="file-grid">
+        {/* Upload Card */}
         <div className="file-card upload-card" onClick={handleUploadClick} tabIndex={0} role="button">
           <input
             type="file"
@@ -362,7 +603,7 @@ const userObj = localStorage.getItem('user');
             onChange={handleFileChange}
             disabled={isUploading}
             multiple 
-            accept=".csv" 
+            accept=".csv,.xml" 
           />
           <div className="thumbnail-wrapper">
             <FaPlus className="plus-icon" />
@@ -370,25 +611,33 @@ const userObj = localStorage.getItem('user');
           <div className="file-name">Upload New</div>
           {isUploading && <CircularProgress size={24} style={{ marginTop: 8 }} />}
         </div>
+
         {/* File Cards */}
         {loading ? (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
-            <CircularProgress />
+          <div className="loading-container">
+            <CircularProgress size={40} />
+            <Typography variant="body2" sx={{ mt: 2, color: '#666' }}>
+              Loading files...
+            </Typography>
           </div>
-        ) : files.length === 0 ? (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: '#888' }}>
-            No files found.
+        ) : displayedFiles.length === 0 && files.length === 0 ? (
+          <div className="empty-state">
+            <FaCloudUploadAlt className="empty-icon" />
+            <Typography variant="h6" gutterBottom>
+              No files found
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Upload your first file to get started
+            </Typography>
           </div>
         ) : (
-          files.map((file, idx) => (
+          displayedFiles.map((file, idx) => (
             <div
-              className="file-card"
+              className={`file-card ${selectedFiles.includes(file) ? 'selected' : ''}`}
               key={file}
               tabIndex={0}
-              style={{ position: 'relative', cursor: 'pointer' }}
               onClick={() => handleFileCardClick(file)}
             >
-              {/* Show green check icon if selected */}
               {selectedFiles.includes(file) && (
                 <div className="selected-indicator">
                   <FaCheck className="check-icon" />
@@ -397,33 +646,12 @@ const userObj = localStorage.getItem('user');
               <div className="thumbnail-wrapper">
                 <img src={thumbnail} alt="thumbnail" className="file-thumbnail" />
               </div>
-              <div className="file-name">{file}</div>
+              <div className="file-name" title={file}>{file}</div>
               {deletingFile === file ? (
-                <CircularProgress size={22} style={{
-                  position: 'absolute',
-                  bottom: 8,
-                  right: 8,
-                  color: '#e74c3c',
-                  background: 'white',
-                  borderRadius: '50%',
-                  padding: 4,
-                  fontSize: 22,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.12)'
-                }} />
+                <CircularProgress size={22} className="delete-icon loading" />
               ) : (
                 <FaTrashAlt
                   className="delete-icon"
-                  style={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
-                    color: '#e74c3c',
-                    background: 'white',
-                    borderRadius: '50%',
-                    padding: 4,
-                    fontSize: 22,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.12)'
-                  }}
                   title="Delete file"
                   onClick={e => handleDelete(file, e)}
                 />
@@ -431,18 +659,63 @@ const userObj = localStorage.getItem('user');
             </div>
           ))
         )}
+
+        {/* View All Card */}
+        {hasMoreFiles && (
+          <div 
+            className="file-card view-all-card" 
+            onClick={() => {
+              if (window && window.amplitude) {
+                logAmplitudeEvent('Data Source View All', { data: files });
+                console.log('[Amplitude] Data Source View All event sent', files);
+              }
+              setShowViewAllModal(true);
+            }}
+            tabIndex={0} 
+            role="button"
+          >
+            <div className="view-all-content">
+              <div className="view-all-icon">
+                <span className="more-count">+{files.length - ITEMS_PER_PAGE}</span>
+              </div>
+              <div className="view-all-text">View All Files</div>
+              <div className="view-all-subtitle">
+                {files.length} total files
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
       {/* Submit button for selected files */}
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleSubmitSelectedFiles}
-          disabled={selectedFiles.length === 0}
-        >
-          Submit
-        </Button>
-      </div>
+      {selectedFiles.length > 0 && (
+        <div className="submit-section">
+          <Button
+            variant="contained"
+            size="large"
+            onClick={handleSubmitSelectedFiles}
+            disabled={selectedFiles.length === 0}
+            sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 3,
+              py: 1.5,
+              px: 4,
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              textTransform: 'none',
+              boxShadow: '0 4px 16px rgba(102, 126, 234, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
+                transform: 'translateY(-2px)'
+              },
+              transition: 'all 0.3s ease'
+            }}
+          >
+            Submit ({selectedFiles.length})
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

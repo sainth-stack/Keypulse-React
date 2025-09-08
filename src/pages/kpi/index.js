@@ -6,6 +6,7 @@ import { Spin, Collapse, message } from 'antd';
 import { LoadingOutlined, CopyOutlined } from '@ant-design/icons';
 import { LoadingIndicator } from '../../components/loader';
 import './index.css';
+import { logAmplitudeEvent } from '../../utils';
 
 const Kpi = () => {
     const [kpis, setKpis] = useState([]);
@@ -41,6 +42,13 @@ const Kpi = () => {
                     }
                 );
                 setKpis(response?.data?.kpis || []);
+                // Log KPI Viewed event with default KPIs
+                if (window && window.amplitude) {
+                  logAmplitudeEvent('KPI Viewed', {
+                    defaultPrompt,
+                    kpis: response?.data?.kpis || []
+                  });
+                }
                 // Don't show success message for initial load
             } catch (error) {
                 console.error('Error fetching default KPIs:', error);
@@ -80,6 +88,13 @@ const Kpi = () => {
             );
             setKpis(response?.data?.kpis || []);
             message.success('KPIs generated successfully');
+            // Log KPI Query Run event with prompt and resulting KPIs
+            if (window && window.amplitude) {
+              logAmplitudeEvent('KPI Query Run', {
+                prompt,
+                kpis: response?.data?.kpis || []
+              });
+            }
         } catch (error) {
             console.error('Error fetching KPIs:', error);
             message.error('Failed to generate KPIs');

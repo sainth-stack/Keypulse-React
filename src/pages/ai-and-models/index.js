@@ -3,6 +3,7 @@ import './index.css';
 import { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { Tabs, Tab, Box } from '@mui/material';
+import { logAmplitudeEvent } from '../../utils';
 
 const AiAndModels = () => {
     const [response, setResponse] = useState(null);
@@ -51,6 +52,10 @@ const[predictLoader,setPredictLoader] = useState(false)
                     // Find closest match (case-insensitive)
                     let defaultKey = keys.find(k => k.toLowerCase() === currentFileName?.toLowerCase()) || keys[0];
                     setSelectedFile(defaultKey);
+                    // Log AI Models Viewed event
+                    if (window && window.amplitude) {
+                      logAmplitudeEvent('AI Models Viewed', { fileNames: keys });
+                    }
                 }
             } else {
                 console.error('Failed to fetch files');
@@ -101,6 +106,14 @@ const[predictLoader,setPredictLoader] = useState(false)
         setFormData(prev => ({ ...prev, tenure }));
     };
 
+    // Log tab change event
+    const handleTabChange = (e, newValue) => {
+        setSelectedFile(newValue);
+        if (window && window.amplitude) {
+          logAmplitudeEvent('AI Models Tab Changed', { fileName: newValue });
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -134,6 +147,18 @@ const[predictLoader,setPredictLoader] = useState(false)
 
             const data = await response.json();
             setResponse(data);
+            // Log AI Model Analysis Run event
+            if (window && window.amplitude) {
+              logAmplitudeEvent('AI Model Analysis Run', {
+                fileName: selectedFile,
+                model: formData.model,
+                col: formData.col,
+                frequency: formData.frequency,
+                tenure: formData.tenure,
+                input: formData,
+                output: data
+              });
+            }
         } catch (error) {
             console.error('Error:', error);
         } finally {
@@ -372,7 +397,7 @@ const[predictLoader,setPredictLoader] = useState(false)
                 <Box sx={{ borderBottom: 1, borderColor: 'divider', margin: '0 0 24px 0', background: '#fff', borderRadius: '8px 8px 0 0' }}>
                     <Tabs
                         value={selectedFile}
-                        onChange={(e, newValue) => setSelectedFile(newValue)}
+                        onChange={handleTabChange}
                         indicatorColor="primary"
                         textColor="primary"
                         variant="scrollable"
