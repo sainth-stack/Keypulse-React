@@ -38,16 +38,31 @@ export default function DataSource() {
   const userObj = localStorage.getItem('user');
   const userId = userObj ? JSON.parse(userObj).id : null;
 
+  // Utility: Sort files so selected files come first
+  const sortFilesSelectedFirst = (fileList) => {
+    return [...fileList].sort((a, b) => {
+      const aSelected = selectedFiles.includes(a);
+      const bSelected = selectedFiles.includes(b);
+      if (aSelected === bSelected) return 0;
+      return aSelected ? -1 : 1;
+    });
+  };
+
   // Filter files based on search term
   useEffect(() => {
     if (searchTerm) {
-      setFilteredFiles(files.filter(file => 
-        file.toLowerCase().includes(searchTerm.toLowerCase())
-      ));
+      setFilteredFiles(
+        sortFilesSelectedFirst(
+          files.filter(file => 
+            file.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        )
+      );
     } else {
-      setFilteredFiles(files);
+      setFilteredFiles(sortFilesSelectedFirst(files));
     }
-  }, [files, searchTerm]);
+    // Add selectedFiles to dependencies so sort updates on selection change
+  }, [files, searchTerm, selectedFiles]);
 
   // Fetch S3 files
   const fetchFiles = async () => {
@@ -312,7 +327,7 @@ export default function DataSource() {
   };
 
   // Get displayed files (first 5 for main view)
-  const displayedFiles = files.slice(0, ITEMS_PER_PAGE);
+  const displayedFiles = sortFilesSelectedFirst(files).slice(0, ITEMS_PER_PAGE);
   const hasMoreFiles = files.length > ITEMS_PER_PAGE;
 
   // Clear search
