@@ -532,9 +532,10 @@ const UserSessions = () => {
                 onChange={(value) => handleFilterChange('userId', value)}
                 onPopupScroll={handleUsersScroll}
                 loading={usersLoading}
-                filterOption={(input, option) =>
-                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                }
+                filterOption={(input, option) => {
+                  const label = (option?.label ?? option?.children ?? '');
+                  return String(label).toLowerCase().includes(input.toLowerCase());
+                }}
                 dropdownRender={(menu) => (
                   <>
                     {menu}
@@ -564,9 +565,10 @@ const UserSessions = () => {
                   onChange={(value) => handleFilterChange('orgId', value)}
                   onPopupScroll={handleOrgsScroll}
                   loading={orgsLoading}
-                  filterOption={(input, option) =>
-                    option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                  }
+                  filterOption={(input, option) => {
+                    const label = (option?.label ?? option?.children ?? '');
+                    return String(label).toLowerCase().includes(input.toLowerCase());
+                  }}
                   dropdownRender={(menu) => (
                     <>
                       {menu}
