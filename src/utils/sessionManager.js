@@ -47,6 +47,14 @@ class SessionManager {
   // Create session on login
   async createSession(userData) {
     try {
+      // Fetch public IP address
+      let ipAddress = 'Unknown';
+      try {
+        const ipRes = await axios.get('https://api.ipify.org?format=json');
+        ipAddress = ipRes.data.ip || 'Unknown';
+      } catch (ipErr) {
+        console.warn('Could not fetch public IP address:', ipErr);
+      }
       const formData = new URLSearchParams();
       formData.append('deviceInfo', this.getDeviceInfo());
       formData.append('loginTime', new Date().toISOString());
@@ -54,7 +62,7 @@ class SessionManager {
       formData.append('userId', userData.id);
       formData.append('userName', userData.username);
       formData.append('userEmail', userData.email);
-      formData.append('ipAddress', '192.168.1.100'); // Default IP address
+      formData.append('ipAddress', ipAddress); 
       if (userData.organization?.organization_id) {
         formData.append('orgId', userData.organization.organization_id);
       }

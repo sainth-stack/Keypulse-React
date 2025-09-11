@@ -67,6 +67,9 @@ const UserSessions = () => {
   const canUpdate = userPermissions.includes("sessions_Write");
   const canDelete = userPermissions.includes("sessions_Delete");
 
+  // Map columnKey to backend field names
+  // Remove columnKeyToField mapping and related logic
+
   // Fetch sessions with correct pagination handling
   const fetchSessions = async () => {
     setLoading(true);
@@ -101,13 +104,10 @@ const UserSessions = () => {
         });
       }
 
-      // Server-side pagination and sorting
+      // Server-side pagination only
       params.page = pagination.current;
       params.limit = pagination.pageSize;
-      if (sorterState?.columnKey === 'loginTime') {
-        params.sortBy = 'loginTime';
-        params.sortOrder = sorterState.order === 'ascend' ? 'asc' : 'desc';
-      }
+      // Removed sorting params
 
       console.log('API Call Params:', params);
       const response = await axios.get(`${API_URL}/sessions`, {
@@ -239,7 +239,7 @@ const UserSessions = () => {
   useEffect(() => {
     fetchSessions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterParams, pagination.current, pagination.pageSize, sorterState]);
+  }, [filterParams, pagination.current, pagination.pageSize]); // removed sorterState
 
   // Handle form submission
   const handleSubmit = async (values) => {
@@ -349,19 +349,6 @@ const UserSessions = () => {
 
   // Memoized table columns
   const isPrivateIp = (ip) => {
-    if (!ip || typeof ip !== 'string') return false;
-    // 10.0.0.0/8
-    if (/^10\./.test(ip)) return true;
-    // 172.16.0.0 – 172.31.255.255
-    const m172 = ip.match(/^172\.(\d{1,3})\./);
-    if (m172) {
-      const second = parseInt(m172[1], 10);
-      if (second >= 16 && second <= 31) return true;
-    }
-    // 192.168.0.0/16
-    if (/^192\.168\./.test(ip)) return true;
-    // localhost
-    if (/^(127\.|::1)/.test(ip)) return true;
     return false;
   };
 
@@ -403,8 +390,7 @@ const UserSessions = () => {
       dataIndex: 'loginTime',
       key: 'loginTime',
       render: (value) => moment(value).format('YYYY-MM-DD HH:mm'),
-      sorter: true,
-      sortOrder: sorterState?.columnKey === 'loginTime' ? sorterState?.order : null,
+      sorter: (a, b) => new Date(a.loginTime) - new Date(b.loginTime), // frontend sorter
     },
     {
       title: 'Logout Time',
@@ -486,25 +472,19 @@ const UserSessions = () => {
         </Space>
       ),
     },
-  ], [organizations, canUpdate, canDelete, sorterState]);
+  ], [organizations, canUpdate, canDelete]); // removed sorterState
 
   // Handle table changes including pagination
   const handleTableChange = (tablePagination, _filters, sorter) => {
     console.log('Table Change:', { tablePagination, sorter });
     
-    // Update pagination
+    // Update pagination only
     setPagination(prev => ({ 
       ...prev, 
       current: tablePagination.current, 
       pageSize: tablePagination.pageSize 
     }));
-    
-    // Update sorting
-    if (sorter && sorter.columnKey) {
-      setSorterState({ columnKey: sorter.columnKey, order: sorter.order });
-    } else {
-      setSorterState({ columnKey: 'loginTime', order: 'descend' });
-    }
+    // No sorterState update, sorting is now frontend only
   };
 
   return (
