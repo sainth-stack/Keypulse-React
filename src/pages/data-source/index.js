@@ -27,6 +27,9 @@ export default function DataSource() {
   const [replaceLoading, setReplaceLoading] = useState(false);
   const [deletingFile, setDeletingFile] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [fileDescriptions, setFileDescriptions] = useState({}); // { fileName: desc }
+  const [showDescModal, setShowDescModal] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState([]); // Files waiting for desc
   
   // New states for pagination and view all modal
   const [showViewAllModal, setShowViewAllModal] = useState(false);
@@ -38,31 +41,16 @@ export default function DataSource() {
   const userObj = localStorage.getItem('user');
   const userId = userObj ? JSON.parse(userObj).id : null;
 
-  // Utility: Sort files so selected files come first
-  const sortFilesSelectedFirst = (fileList) => {
-    return [...fileList].sort((a, b) => {
-      const aSelected = selectedFiles.includes(a);
-      const bSelected = selectedFiles.includes(b);
-      if (aSelected === bSelected) return 0;
-      return aSelected ? -1 : 1;
-    });
-  };
-
   // Filter files based on search term
   useEffect(() => {
     if (searchTerm) {
-      setFilteredFiles(
-        sortFilesSelectedFirst(
-          files.filter(file => 
-            file.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        )
-      );
+      setFilteredFiles(files.filter(file => 
+        file.toLowerCase().includes(searchTerm.toLowerCase())
+      ));
     } else {
-      setFilteredFiles(sortFilesSelectedFirst(files));
+      setFilteredFiles(files);
     }
-    // Add selectedFiles to dependencies so sort updates on selection change
-  }, [files, searchTerm, selectedFiles]);
+  }, [files, searchTerm]);
 
   // Fetch S3 files
   const fetchFiles = async () => {
@@ -149,7 +137,9 @@ export default function DataSource() {
       return;
     }
 
-    await uploadFiles(selectedFiles);
+    // Instead of uploading directly, show description modal
+    setPendingUploadFiles(selectedFiles);
+    setShowDescModal(true);
     setIsUploading(false);
   };
 
@@ -169,9 +159,10 @@ export default function DataSource() {
       }
       return item.originalFile;
     });
-    await uploadFiles(filesToUpload);
+    // Instead of uploading directly, show description modal for these files
+    setPendingUploadFiles(filesToUpload);
     setShowFileExistsModal(false);
-    setDuplicateFiles([]);
+    setShowDescModal(true);
     setReplaceLoading(false);
   };
 
@@ -181,12 +172,18 @@ export default function DataSource() {
     setReplaceLoading(false);
   };
 
-  const uploadFiles = async (files) => {
+  const uploadFiles = async (files, fileDescriptions = {}) => {
     setIsUploading(true);
     const formData = new FormData();
     files.forEach(file => {
       formData.append('file', file);
     });
+    // Add file_name_desc as JSON string
+    if (Object.keys(fileDescriptions).length > 0) {
+      formData.append('file_name_desc', JSON.stringify(
+        Object.fromEntries(files.map(f => [f.name, fileDescriptions[f.name] || '']))
+      ));
+    }
     try {
       const response = await fetch(`${API_URL}/file_upload/`, {
         method: 'POST',
@@ -327,7 +324,7 @@ export default function DataSource() {
   };
 
   // Get displayed files (first 5 for main view)
-  const displayedFiles = sortFilesSelectedFirst(files).slice(0, ITEMS_PER_PAGE);
+  const displayedFiles = files.slice(0, ITEMS_PER_PAGE);
   const hasMoreFiles = files.length > ITEMS_PER_PAGE;
 
   // Clear search
@@ -339,6 +336,30 @@ export default function DataSource() {
   const handleViewAllClose = () => {
     setShowViewAllModal(false);
     setSearchTerm('');
+  };
+
+  // Description Modal Handlers
+  const handleDescChange = (fileName, value) => {
+    setFileDescriptions(prev => ({ ...prev, [fileName]: value }));
+  };
+
+  const handleDescModalClose = () => {
+    setShowDescModal(false);
+    setPendingUploadFiles([]);
+    setFileDescriptions({});
+  };
+
+  const handleDescModalSubmit = async () => {
+    // Validate all descriptions are filled
+    const missing = pendingUploadFiles.some(f => !fileDescriptions[f.name]?.trim());
+    if (missing) {
+      toast.error('Please enter a description for all files.');
+      return;
+    }
+    await uploadFiles(pendingUploadFiles, fileDescriptions);
+    setShowDescModal(false);
+    setPendingUploadFiles([]);
+    setFileDescriptions({});
   };
 
   return (
@@ -590,6 +611,33 @@ export default function DataSource() {
           >
             Submit Selected ({selectedFiles.length})
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Description Modal */}
+      <Dialog open={showDescModal} onClose={handleDescModalClose} maxWidth="sm" fullWidth>
+        <DialogTitle>File Descriptions</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Please enter a description for each file you are uploading:
+          </Typography>
+          {pendingUploadFiles.map(file => (
+            <Box key={file.name} sx={{ mb: 2 }}>
+              <Typography variant="subtitle2">{file.name}</Typography>
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                value={fileDescriptions[file.name] || ''}
+                onChange={e => handleDescChange(file.name, e.target.value)}
+                placeholder="Enter description"
+              />
+            </Box>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDescModalClose}>Cancel</Button>
+          <Button onClick={handleDescModalSubmit} variant="contained">Upload</Button>
         </DialogActions>
       </Dialog>
 
