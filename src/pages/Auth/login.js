@@ -25,7 +25,16 @@ export const Login = () => {
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
+  // Load saved email on component mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('rememberedEmail');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   const fetchRoles = async (roles) => {
     setLoading(true);
@@ -153,6 +162,13 @@ export const Login = () => {
         }
       }
       
+      // Handle remember me functionality
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', trimmedEmail);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+      
       // Fetch roles and navigate
       await fetchRoles(userData?.role);
       
@@ -230,7 +246,13 @@ export const Login = () => {
                   autoComplete="off"
                   value={email}
                   required
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    // If user changes email and remember me is off, clear saved email
+                    if (!rememberMe) {
+                      localStorage.removeItem('rememberedEmail');
+                    }
+                  }}
                 />
               </div>
 
@@ -258,7 +280,25 @@ export const Login = () => {
                 </div>
               </div>
               
-              <div className="d-flex flex-row-reverse mb-4">
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => {
+                      setRememberMe(e.target.checked);
+                      // If unchecking remember me, clear saved email immediately
+                      if (!e.target.checked) {
+                        localStorage.removeItem('rememberedEmail');
+                      }
+                    }}
+                  />
+                  <label className="form-check-label fs-12" htmlFor="rememberMe">
+                    Remember me
+                  </label>
+                </div>
                 <span 
                   className="fs-12 cursor-pointer text-primary" 
                   style={{textDecoration:'underline', cursor:"pointer"}} 

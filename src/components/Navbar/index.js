@@ -66,7 +66,7 @@ function Navbar() {
             <i class="bi bi-caret-down-fill"></i>
           </a>
           <div class="dropdown-menu" aria-labelledby="navbarDropdown" style={{ position: "absolute", left: "-60px", top: "30px" }}>
-            <span class="dropdown-item">Action</span>
+            {/* <span class="dropdown-item">Action</span> */}
             <span class="dropdown-item" onClick={() => handleLogout()}>Logout</span>
           </div>
           <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingRight:'30px',paddingLeft:'10px'}} id="navbarNav">

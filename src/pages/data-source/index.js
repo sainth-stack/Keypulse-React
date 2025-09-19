@@ -36,21 +36,71 @@ export default function DataSource() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredFiles, setFilteredFiles] = useState([]);
   
+  // Stable sorted files - sorted once on load, doesn't change during selection
+  const [stableSortedFiles, setStableSortedFiles] = useState([]);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [selectedFilesLoaded, setSelectedFilesLoaded] = useState(false);
+  
   const ITEMS_PER_PAGE = 5;
   
   const userObj = localStorage.getItem('user');
   const userId = userObj ? JSON.parse(userObj).id : null;
 
-  // Filter files based on search term
+  // Create initial sorted list when both files and selectedFiles are loaded
+  useEffect(() => {
+    console.log('Sorting effect triggered with:', {
+      filesLength: files.length,
+      selectedFilesLoaded,
+      initialLoadComplete,
+      selectedFilesLength: selectedFiles.length
+    });
+    
+    // Only run this once when both API calls have completed
+    if (files.length > 0 && selectedFilesLoaded && !initialLoadComplete) {
+      console.log('✅ CONDITIONS MET - Creating initial sorted files with:');
+      console.log('Files:', files);
+      console.log('Selected files:', selectedFiles);
+      console.log('selectedFilesLoaded:', selectedFilesLoaded);
+      
+      const sortedFiles = [...files].sort((a, b) => {
+        const aSelected = selectedFiles.includes(a);
+        const bSelected = selectedFiles.includes(b);
+        
+        // Selected files come first
+        if (aSelected && !bSelected) return -1;
+        if (!aSelected && bSelected) return 1;
+        
+        // Within same selection status, maintain original order
+        return files.indexOf(a) - files.indexOf(b);
+      });
+      
+      console.log('✅ Initial sorted files:', sortedFiles);
+      setStableSortedFiles(sortedFiles);
+      setInitialLoadComplete(true);
+    } else {
+      console.log('❌ CONDITIONS NOT MET - Skipping sort');
+    }
+  }, [files, selectedFiles, selectedFilesLoaded, initialLoadComplete]);
+  
+  // Reset when files are refreshed
+  useEffect(() => {
+    if (files.length === 0) {
+      setInitialLoadComplete(false);
+      setSelectedFilesLoaded(false);
+      setStableSortedFiles([]);
+    }
+  }, [files]);
+
+  // Filter files based on search term - use stable sorted files
   useEffect(() => {
     if (searchTerm) {
-      setFilteredFiles(files.filter(file => 
+      setFilteredFiles(stableSortedFiles.filter(file => 
         file.toLowerCase().includes(searchTerm.toLowerCase())
       ));
     } else {
-      setFilteredFiles(files);
+      setFilteredFiles(stableSortedFiles);
     }
-  }, [files, searchTerm]);
+  }, [stableSortedFiles, searchTerm]);
 
   // Fetch S3 files
   const fetchFiles = async () => {
@@ -62,7 +112,10 @@ export default function DataSource() {
         headers: { 'X-User-ID': userId },
       });
       const data = await res.json();
+      console.log('Loaded files from API:', data.available_files);
       setFiles(data.available_files || []);
+      // Reset the initial load flag so files get re-sorted with current selections
+      setInitialLoadComplete(false);
     } catch (e) {
       toast.error('Failed to fetch files');
     } finally {
@@ -75,17 +128,33 @@ export default function DataSource() {
     try {
       const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
+      console.log('Fetching user selected files for userId:', userId);
       const response = await fetch(`${API_URL}/get_user_selected_file_name`, {
         method: 'GET',
         headers: { 'X-User-ID': userId },
       });
-      if (!response.ok) return;
-      const data = await response.json();
-      if (data && Array.isArray(data.file_name)) {
-        setSelectedFiles(data.file_name);
+      console.log('Response status:', response.status, response.ok);
+      if (!response.ok) {
+        console.log('Response not ok, setting empty selected files');
+        setSelectedFiles([]);
+        setSelectedFilesLoaded(true);
+        return;
       }
+      const data = await response.json();
+      console.log('Raw response data:', data);
+      if (data && Array.isArray(data.file_name)) {
+        console.log('Setting selected files to:', data.file_name);
+        setSelectedFiles(data.file_name);
+      } else {
+        console.log('No selected files data or invalid format:', data);
+        setSelectedFiles([]);
+      }
+      setSelectedFilesLoaded(true);
+      console.log('selectedFilesLoaded set to true');
     } catch (error) {
-      // Optionally handle error
+      console.log('Error fetching selected files:', error);
+      setSelectedFiles([]);
+      setSelectedFilesLoaded(true);
     }
   };
 
@@ -94,13 +163,23 @@ export default function DataSource() {
     fetchUserSelectedFiles();
   }, []);
 
+  // Debug: Log when selectedFiles changes
+  useEffect(() => {
+    console.log('selectedFiles state changed to:', selectedFiles);
+  }, [selectedFiles]);
+
+  // Debug: Log when selectedFilesLoaded changes
+  useEffect(() => {
+    console.log('selectedFilesLoaded changed to:', selectedFilesLoaded);
+  }, [selectedFilesLoaded]);
+
   // Fire Data Source Opened event with all file names when files are loaded
   useEffect(() => {
-    if (files.length > 0 && window && window.amplitude) {
-      logAmplitudeEvent('Data Source Opened', { data: files });
-      console.log('[Amplitude] Data Source Opened event sent', files);
+    if (stableSortedFiles.length > 0 && window && window.amplitude) {
+      logAmplitudeEvent('Data Source Opened', { data: stableSortedFiles });
+      console.log('[Amplitude] Data Source Opened event sent', stableSortedFiles);
     }
-  }, [files]);
+  }, [stableSortedFiles]);
 
   const checkFilesExist = async (files) => {
     const formData = new FormData();
@@ -289,7 +368,7 @@ export default function DataSource() {
       return;
     }
     try {
-      const validSelectedFiles = selectedFiles.filter(fileName => files.includes(fileName));
+      const validSelectedFiles = selectedFiles.filter(fileName => stableSortedFiles.includes(fileName));
       
       if (validSelectedFiles.length === 0) {
         toast.error('None of the selected files exist anymore. Please select available files.');
@@ -323,9 +402,16 @@ export default function DataSource() {
     }
   };
 
-  // Get displayed files (first 5 for main view)
-  const displayedFiles = files.slice(0, ITEMS_PER_PAGE);
-  const hasMoreFiles = files.length > ITEMS_PER_PAGE;
+  // Get displayed files (first 5 for main view) - use stable sorted files
+  const displayedFiles = stableSortedFiles.slice(0, ITEMS_PER_PAGE);
+  const hasMoreFiles = stableSortedFiles.length > ITEMS_PER_PAGE;
+  
+  // Debug: Log what's being displayed
+  console.log('📊 RENDER STATE:', {
+    stableSortedFiles: stableSortedFiles.slice(0, 3), // First 3 only to avoid spam
+    displayedFiles: displayedFiles.slice(0, 3),
+    selectedFiles: selectedFiles.slice(0, 3)
+  });
 
   // Clear search
   const clearSearch = () => {
@@ -463,7 +549,7 @@ export default function DataSource() {
         }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Typography variant="h5" fontWeight={600}>
-              All Files ({files.length})
+              All Files ({stableSortedFiles.length})
             </Typography>
             <Button
               onClick={handleViewAllClose}
@@ -645,10 +731,10 @@ export default function DataSource() {
       <div className="header-section">
         <h1 className="data-source-title">Data Source</h1>
         <div className="stats-bar">
-          <div className="stat-item">
-            <span className="stat-number">{files.length}</span>
-            <span className="stat-label">Total Files</span>
-          </div>
+        <div className="stat-item">
+          <span className="stat-number">{stableSortedFiles.length}</span>
+          <span className="stat-label">Total Files</span>
+        </div>
           <div className="stat-item">
             <span className="stat-number">{selectedFiles.length}</span>
             <span className="stat-label">Selected</span>
@@ -683,7 +769,7 @@ export default function DataSource() {
               Loading files...
             </Typography>
           </div>
-        ) : displayedFiles.length === 0 && files.length === 0 ? (
+        ) : displayedFiles.length === 0 && stableSortedFiles.length === 0 ? (
           <div className="empty-state">
             <FaCloudUploadAlt className="empty-icon" />
             <Typography variant="h6" gutterBottom>
@@ -729,8 +815,8 @@ export default function DataSource() {
             className="file-card view-all-card" 
             onClick={() => {
               if (window && window.amplitude) {
-                logAmplitudeEvent('Data Source View All', { data: files });
-                console.log('[Amplitude] Data Source View All event sent', files);
+                logAmplitudeEvent('Data Source View All', { data: stableSortedFiles });
+                console.log('[Amplitude] Data Source View All event sent', stableSortedFiles);
               }
               setShowViewAllModal(true);
             }}
@@ -739,11 +825,11 @@ export default function DataSource() {
           >
             <div className="view-all-content">
               <div className="view-all-icon">
-                <span className="more-count">+{files.length - ITEMS_PER_PAGE}</span>
+                <span className="more-count">+{stableSortedFiles.length - ITEMS_PER_PAGE}</span>
               </div>
               <div className="view-all-text">View All Files</div>
               <div className="view-all-subtitle">
-                {files.length} total files
+                {stableSortedFiles.length} total files
               </div>
             </div>
           </div>

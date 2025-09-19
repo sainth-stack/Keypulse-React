@@ -427,7 +427,7 @@ const UserSessions = () => {
       sorter: (a, b) => a.status.localeCompare(b.status),
       filters: [
         { text: 'Active', value: 'active' },
-        { text: 'Inactive', value: 'inactive' },
+        { text: 'Completed', value: 'completed' },
         { text: 'Expired', value: 'expired' },
       ],
       onFilter: (value, record) => record.status === value,
@@ -586,7 +586,7 @@ const UserSessions = () => {
           </Row>
         </div>
 
-        {canCreate && (
+        {/* {canCreate && (
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -595,7 +595,7 @@ const UserSessions = () => {
           >
             Add Session
           </Button>
-        )}
+        )} */}
 
         <Table
           columns={columns}

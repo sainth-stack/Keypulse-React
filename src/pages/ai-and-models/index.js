@@ -1,9 +1,10 @@
 import { API_URL } from '../../const';
 import './index.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import { Tabs, Tab, Box } from '@mui/material';
 import { logAmplitudeEvent } from '../../utils';
+import { LoadingIndicator } from '../../components/loader';
 
 const AiAndModels = () => {
     const [response, setResponse] = useState(null);
@@ -16,14 +17,15 @@ const AiAndModels = () => {
     });
     const [rfInputs, setRfInputs] = useState({});
 const[predictLoader,setPredictLoader] = useState(false)
+    // Ref for prediction analysis section
+    const predictionAnalysisRef = useRef(null);
     // Inside your main component (e.g., AiAndModels)
     const [fileKeys, setFileKeys] = useState([]);
     const [selectedFile, setSelectedFile] = useState(null);
     const [filesData, setFilesData] = useState({});
-
     // Columns for the selected file
     const columns = selectedFile && filesData[selectedFile] ? filesData[selectedFile] : [];
-    const columnsLoading = !selectedFile || !filesData[selectedFile];
+    const [columnsLoading, setColumnsLoading] = useState(!selectedFile || !filesData[selectedFile]);
 
     // Fetch models API and parse files
     useEffect(() => {
@@ -31,8 +33,15 @@ const[predictLoader,setPredictLoader] = useState(false)
             // Get user ID from localStorage
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id;
-
-            const response = await fetch(`${API_URL}/models`, {
+            const modelParamMap = {
+                'Prediction': 'prediction',
+                'Forecast': 'forecast',
+                'Classification': 'classification',
+                'OutlierDetection': 'outlier',
+            };
+            setColumnsLoading(true);
+            const modelParam = modelParamMap[formData.model] || 'prediction';
+            const response = await fetch(`${API_URL}/models?model=${modelParam}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -41,6 +50,7 @@ const[predictLoader,setPredictLoader] = useState(false)
             });
 
             if (response.ok) {
+                setColumnsLoading(false);
                 const result = await response.json();
                 if (result.files && typeof result.files === 'object') {
                     const keys = Object.keys(result.files);
@@ -58,14 +68,37 @@ const[predictLoader,setPredictLoader] = useState(false)
                     }
                 }
             } else {
+                setColumnsLoading(false);
                 console.error('Failed to fetch files');
                 setFileKeys([]);
                 setFilesData({});
                 setSelectedFile(null);
             }
         };
+        
         fetchModels();
-    }, []);
+    }, [formData.model]);
+
+    // Scroll to prediction analysis section when prediction model succeeds
+    useEffect(() => {
+        if (response && response.status && formData.model === 'Prediction' && predictionAnalysisRef.current) {
+            // Small delay to ensure the analysis section is rendered
+            setTimeout(() => {
+                predictionAnalysisRef.current?.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+            }, 100);
+        }
+    }, [response, formData.model]);
+
+    // Function to detect if a field is a date field
+    const isDateField = (fieldName) => {
+        const dateKeywords = ['date', 'time', 'created', 'updated', 'modified', 'timestamp', 'datetime', 'birth', 'expiry', 'start', 'end'];
+        return dateKeywords.some(keyword => 
+            fieldName.toLowerCase().includes(keyword.toLowerCase())
+        );
+    };
 
     const models = [
         { id: 'Classification', label: 'Classification', description: 'Discover hidden patterns and segment data using clustering' },
@@ -235,7 +268,7 @@ const[predictLoader,setPredictLoader] = useState(false)
             case 'Prediction':
                 return (
                     <div className="rf-container">
-                        <h2 className="response-title">Prediction Analysis</h2>
+                        <h2 className="response-title" ref={predictionAnalysisRef}>Prediction Analysis</h2>
                         <div className="business-inference">
                             <h3>Business Insights:</h3>
                             <p>
@@ -284,7 +317,7 @@ const[predictLoader,setPredictLoader] = useState(false)
                                             <label className="rf-label">
                                                 {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                                 <input
-                                                    type={'text'}
+                                                    type={isDateField(col) ? 'datetime-local' : 'text'}
                                                     className="rf-input"
                                                     value={rfInputs[col] || ''}
                                                     onChange={(e) => setRfInputs(prev => ({
@@ -292,7 +325,7 @@ const[predictLoader,setPredictLoader] = useState(false)
                                                         [col]: e.target.value
                                                     }))}
                                                     required
-                                                    placeholder={`Enter ${col.replace(/_/g, ' ')}`}
+                                                    placeholder={isDateField(col) ? 'Select date and time' : `Enter ${col.replace(/_/g, ' ')}`}
                                                 />
                                             </label>
                                         </div>
@@ -390,6 +423,12 @@ const[predictLoader,setPredictLoader] = useState(false)
 
     return (
         <div className="modern-container">
+            {/* Overlay loader for main API calls */}
+            {loading && <LoadingIndicator message="Analyzing your data..." />}
+            
+            {/* Overlay loader for prediction API calls */}
+            {predictLoader && <LoadingIndicator message="Making prediction..." />}
+            
             <h1 className="modern-title">AI and Models Analysis</h1>
             
             {/* Tabs for multiple files */}
@@ -502,7 +541,6 @@ const[predictLoader,setPredictLoader] = useState(false)
                 </button>
             </form>
 
-            {loading && <div className="modern-loading">Processing your data...</div>}
             {response && (
                 <div className="response-wrapper">
                     {renderResponse()}
