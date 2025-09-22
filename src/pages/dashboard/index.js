@@ -47,6 +47,11 @@ const Dashboard = () => {
   const [numOfRows, setNumOfRows] = useState(100);
   const [advancedLoading, setAdvancedLoading] = useState(false);
 
+  // Progress tracking states
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [totalGraphs, setTotalGraphs] = useState(4);
+  const [progressMessage, setProgressMessage] = useState('');
+
   // Cache keys
   const CACHE_KEY = 'dashboard_data';
   const CACHE_EXPIRY_KEY = 'dashboard_data_expiry';
@@ -54,6 +59,7 @@ const Dashboard = () => {
 
   // Unified API call management
   const activeRequestRef = useRef(null);
+  const progressIntervalRef = useRef(null);
 
   // On mount, clear cache and fetch data ONCE
   useEffect(() => {
@@ -80,6 +86,55 @@ const Dashboard = () => {
     }
     // eslint-disable-next-line
   }, [fileName]);
+
+  // Progress tracking effect
+  useEffect(() => {
+    if (loading || advancedLoading) {
+      setLoadingProgress(0);
+      setProgressMessage(`Initializing graph generation...`);
+      
+      // Start progress simulation with more realistic timing
+      let currentProgress = 0;
+      const updateProgress = () => {
+        currentProgress++;
+        if (currentProgress <= totalGraphs) {
+          setLoadingProgress(currentProgress);
+          if (currentProgress < totalGraphs) {
+            setProgressMessage(`Generating graph ${currentProgress}/${totalGraphs}...`);
+          } else if (currentProgress === totalGraphs) {
+            setProgressMessage(`Finalizing visualizations...`);
+          }
+        }
+      };
+      
+      // Initial update after 5 seconds
+      setTimeout(updateProgress, 5000);
+      
+      // Then update every 8-12 seconds for more realistic feel
+      progressIntervalRef.current = setInterval(() => {
+        if (currentProgress < totalGraphs - 1) {
+          updateProgress();
+        }
+      }, 8000 + Math.random() * 4000); // Random between 8-12 seconds
+      
+    } else {
+      // Clean up interval when loading stops
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setLoadingProgress(0);
+      setProgressMessage('');
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, [loading, advancedLoading, totalGraphs]);
 
   // Cancel any active request
   const cancelActiveRequest = () => {
@@ -172,6 +227,9 @@ const Dashboard = () => {
     // Prevent multiple simultaneous calls
     if (loading) return;
     
+    // Set total graphs for progress tracking
+    setTotalGraphs(config?.numOfPlots || numOfPlots || 4);
+    
     // Set loading state based on context
     if (config) {
       setAdvancedLoading(true);
@@ -204,6 +262,10 @@ const Dashboard = () => {
       setFileKeys(fileKeys);
       setSelectedFile(fileKeys[0] || null);
       
+      // Show completion briefly before hiding loading
+      setLoadingProgress(totalGraphs);
+      setProgressMessage(`All ${totalGraphs} graphs generated successfully!`);
+      
       // Only cache if it's a default GET request
       if (!config) {
         setCachedData(result);
@@ -211,6 +273,14 @@ const Dashboard = () => {
       
       setLastRefresh(new Date());
       setError(null);
+      
+      // Show completion for 2 seconds before hiding loading
+      setTimeout(() => {
+        if (config) {
+          setAdvancedLoading(false);
+        }
+        setLoading(false);
+      }, 2000);
       
       // Log Amplitude events
       if (window && window.amplitude) {
@@ -244,11 +314,8 @@ const Dashboard = () => {
         }
       }
     } finally {
-      // FIXED: Properly reset loading states
-      if (config) {
-        setAdvancedLoading(false);
-      } else {
-      }
+      // Loading states are handled in success case with delay
+      // Only reset immediately on error
     }
   };
 
@@ -303,8 +370,11 @@ const Dashboard = () => {
         numOfRows: numOfRows
       };
       
-      await fetchData(true, config);
+      // Close dialog immediately so user can see progress on main screen
       setAdvancedOpen(false);
+      
+      // Start the API call
+      await fetchData(true, config);
       
     } catch (error) {
       console.error("Error in advanced generate:", error);
@@ -661,10 +731,109 @@ const Dashboard = () => {
         </Fade>
       )}
 
-      {/* Loading State */}
+      {/* Professional Loading State with Progress */}
       {(loading || advancedLoading) && (
-        <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
-          <LoadingIndicator message={advancedLoading ? "Generating custom plots..." : "Loading dashboard data..."} />
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "center", 
+          padding: "64px 0",
+          flexDirection: "column",
+          alignItems: "center"
+        }}>
+          <div style={{
+            background: "linear-gradient(135deg, #fff 0%, #f8fafc 100%)",
+            borderRadius: "16px",
+            padding: "40px",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+            border: "1px solid #e2e8f0",
+            maxWidth: "500px",
+            width: "100%",
+            textAlign: "center"
+          }}>
+            {/* Main Loading Spinner */}
+            <div style={{ marginBottom: "24px" }}>
+              <CircularProgress 
+                size={60} 
+                style={{ 
+                  color: "#667eea",
+                  marginBottom: "16px"
+                }} 
+              />
+            </div>
+            
+            {/* Progress Counter */}
+            <div style={{
+              background: "#f1f5f9",
+              borderRadius: "12px",
+              padding: "16px",
+              marginBottom: "20px",
+              border: "2px solid #e2e8f0"
+            }}>
+              <Typography 
+                variant="h6" 
+                style={{ 
+                  fontWeight: 700,
+                  color: "#1e293b",
+                  marginBottom: "8px",
+                  fontSize: "1.25rem"
+                }}
+              >
+                {loadingProgress}/{totalGraphs} Graphs Generated
+              </Typography>
+              
+              {/* Progress Bar */}
+              <div style={{
+                width: "100%",
+                height: "8px",
+                backgroundColor: "#e2e8f0",
+                borderRadius: "4px",
+                overflow: "hidden",
+                marginBottom: "12px"
+              }}>
+                <div style={{
+                  width: `${(loadingProgress / totalGraphs) * 100}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #667eea 0%, #764ba2 100%)",
+                  borderRadius: "4px",
+                  transition: "width 0.5s ease-in-out"
+                }} />
+              </div>
+              
+              <Typography 
+                variant="body2" 
+                style={{ 
+                  color: "#64748b",
+                  fontSize: "0.875rem",
+                  fontWeight: 500
+                }}
+              >
+                {progressMessage}
+              </Typography>
+            </div>
+            
+            {/* Status Message */}
+            <Typography 
+              variant="body1" 
+              style={{ 
+                color: "#475569",
+                fontSize: "1rem",
+                marginBottom: "8px",
+                fontWeight: 500
+              }}
+            >
+              {advancedLoading ? "Generating Custom Visualizations" : "Loading Dashboard Data"}
+            </Typography>
+            
+            <Typography 
+              variant="caption" 
+              style={{ 
+                color: "#94a3b8",
+                fontSize: "0.8rem"
+              }}
+            >
+              This may take a few moments depending on data complexity
+            </Typography>
+          </div>
         </div>
       )}
 

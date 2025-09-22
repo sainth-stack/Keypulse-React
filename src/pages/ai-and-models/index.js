@@ -2,7 +2,7 @@ import { API_URL } from '../../const';
 import './index.css';
 import { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
-import { Tabs, Tab, Box } from '@mui/material';
+import { Tabs, Tab, Box, Typography, CircularProgress } from '@mui/material';
 import { logAmplitudeEvent } from '../../utils';
 import { LoadingIndicator } from '../../components/loader';
 
@@ -19,6 +19,12 @@ const AiAndModels = () => {
 const[predictLoader,setPredictLoader] = useState(false)
     // Ref for prediction analysis section
     const predictionAnalysisRef = useRef(null);
+
+    // Training progress states
+    const [trainingProgress, setTrainingProgress] = useState(0);
+    const [trainingMessage, setTrainingMessage] = useState('');
+    const [isTraining, setIsTraining] = useState(false);
+    const trainingIntervalRef = useRef(null);
     // Inside your main component (e.g., AiAndModels)
     const [fileKeys, setFileKeys] = useState([]);
     const [selectedFile, setSelectedFile] = useState(null);
@@ -91,6 +97,78 @@ const[predictLoader,setPredictLoader] = useState(false)
             }, 100);
         }
     }, [response, formData.model]);
+
+    // Training progress simulation effect
+    useEffect(() => {
+        if (loading && (formData.model === 'Prediction' || formData.model === 'Forecast')) {
+            setIsTraining(true);
+            setTrainingProgress(0);
+            
+            // Different training phases for different models
+            let trainingPhases;
+            if (formData.model === 'Prediction') {
+                setTrainingMessage('Initializing model training...');
+                trainingPhases = [
+                    { progress: 10, message: 'Loading training data...', duration: 2000 },
+                    { progress: 25, message: 'Feature engineering...', duration: 3000 },
+                    { progress: 40, message: 'Building decision trees...', duration: 4000 },
+                    { progress: 60, message: 'Training random forest...', duration: 5000 },
+                    { progress: 75, message: 'Cross-validation...', duration: 3000 },
+                    { progress: 90, message: 'Model optimization...', duration: 2000 },
+                    { progress: 100, message: 'Training completed successfully!', duration: 1000 }
+                ];
+            } else if (formData.model === 'Forecast') {
+                setTrainingMessage('Initializing time series analysis...');
+                trainingPhases = [
+                    { progress: 15, message: 'Loading time series data...', duration: 2500 },
+                    { progress: 30, message: 'Detecting seasonal patterns...', duration: 3500 },
+                    { progress: 45, message: 'Analyzing trend components...', duration: 4000 },
+                    { progress: 60, message: 'Building ARIMA model...', duration: 4500 },
+                    { progress: 75, message: 'Parameter optimization...', duration: 3000 },
+                    { progress: 90, message: 'Generating forecasts...', duration: 2000 },
+                    { progress: 100, message: 'Forecasting completed successfully!', duration: 1000 }
+                ];
+            }
+
+            let currentPhaseIndex = 0;
+            
+            const updateProgress = () => {
+                if (currentPhaseIndex < trainingPhases.length) {
+                    const phase = trainingPhases[currentPhaseIndex];
+                    setTrainingProgress(phase.progress);
+                    setTrainingMessage(phase.message);
+                    
+                    trainingIntervalRef.current = setTimeout(() => {
+                        currentPhaseIndex++;
+                        if (currentPhaseIndex < trainingPhases.length) {
+                            updateProgress();
+                        }
+                    }, phase.duration);
+                }
+            };
+
+            // Start progress after a brief delay
+            setTimeout(updateProgress, 500);
+            
+        } else {
+            // Clean up training progress when not training
+            setIsTraining(false);
+            setTrainingProgress(0);
+            setTrainingMessage('');
+            if (trainingIntervalRef.current) {
+                clearTimeout(trainingIntervalRef.current);
+                trainingIntervalRef.current = null;
+            }
+        }
+
+        // Cleanup on unmount
+        return () => {
+            if (trainingIntervalRef.current) {
+                clearTimeout(trainingIntervalRef.current);
+                trainingIntervalRef.current = null;
+            }
+        };
+    }, [loading, formData.model]);
 
     // Function to detect if a field is a date field
     const isDateField = (fieldName) => {
@@ -423,8 +501,135 @@ const[predictLoader,setPredictLoader] = useState(false)
 
     return (
         <div className="modern-container">
-            {/* Overlay loader for main API calls */}
-            {loading && <LoadingIndicator message="Analyzing your data..." />}
+            {/* Professional Training Progress Overlay */}
+            {loading && isTraining && (formData.model === 'Prediction' || formData.model === 'Forecast') && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 9999,
+                    backdropFilter: 'blur(4px)'
+                }}>
+                    <div style={{
+                        background: "linear-gradient(135deg, #fff 0%, #f8fafc 100%)",
+                        borderRadius: "16px",
+                        padding: "40px",
+                        boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+                        border: "1px solid #e2e8f0",
+                        maxWidth: "500px",
+                        width: "90%",
+                        textAlign: "center"
+                    }}>
+                        {/* Main Loading Spinner */}
+                        <div style={{ marginBottom: "24px" }}>
+                            <CircularProgress 
+                                size={60} 
+                                style={{ 
+                                    color: "#667eea",
+                                    marginBottom: "16px"
+                                }} 
+                            />
+                        </div>
+                        
+                        {/* Progress Counter */}
+                        <div style={{
+                            background: "#f1f5f9",
+                            borderRadius: "12px",
+                            padding: "20px",
+                            marginBottom: "20px",
+                            border: "2px solid #e2e8f0"
+                        }}>
+                            <Typography 
+                                variant="h4" 
+                                style={{ 
+                                    fontWeight: 800,
+                                    color: "#1e293b",
+                                    marginBottom: "12px",
+                                    fontSize: "2rem"
+                                }}
+                            >
+                                {trainingProgress}%
+                            </Typography>
+                            
+                            {/* Progress Bar */}
+                            <div style={{
+                                width: "100%",
+                                height: "12px",
+                                backgroundColor: "#e2e8f0",
+                                borderRadius: "6px",
+                                overflow: "hidden",
+                                marginBottom: "16px"
+                            }}>
+                                <div style={{
+                                    width: `${trainingProgress}%`,
+                                    height: "100%",
+                                    background: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+                                    borderRadius: "6px",
+                                    transition: "width 0.8s ease-in-out"
+                                }} />
+                            </div>
+                            
+                            <Typography 
+                                variant="h6" 
+                                style={{ 
+                                    color: "#475569",
+                                    fontSize: "1.1rem",
+                                    fontWeight: 600,
+                                    marginBottom: "8px"
+                                }}
+                            >
+                                {formData.model === 'Prediction' ? 'Model Training in Progress' : 'Forecasting in Progress'}
+                            </Typography>
+
+                            <Typography 
+                                variant="body1" 
+                                style={{ 
+                                    color: "#64748b",
+                                    fontSize: "0.95rem",
+                                    fontWeight: 500
+                                }}
+                            >
+                                {trainingMessage}
+                            </Typography>
+                        </div>
+                        
+                        <Typography 
+                            variant="body2" 
+                            style={{ 
+                                color: "#94a3b8",
+                                fontSize: "0.85rem",
+                                marginBottom: "8px"
+                            }}
+                        >
+                            {formData.model === 'Prediction' 
+                                ? 'Training RandomForest Classification Model' 
+                                : 'Building ARIMA Time Series Model'}
+                        </Typography>
+
+                        <Typography 
+                            variant="caption" 
+                            style={{ 
+                                color: "#94a3b8",
+                                fontSize: "0.75rem"
+                            }}
+                        >
+                            {formData.model === 'Prediction' 
+                                ? 'Please wait while we train your prediction model...' 
+                                : 'Please wait while we generate your forecasting model...'}
+                        </Typography>
+                    </div>
+                </div>
+            )}
+
+            {/* Regular overlay loader for non-training API calls */}
+            {loading && (!isTraining || (formData.model !== 'Prediction' && formData.model !== 'Forecast')) && 
+                <LoadingIndicator message="Analyzing your data..." />}
             
             {/* Overlay loader for prediction API calls */}
             {predictLoader && <LoadingIndicator message="Making prediction..." />}

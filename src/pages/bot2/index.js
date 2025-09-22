@@ -47,7 +47,7 @@ const Bot2 = () => {
       }
       setMessages(prev => [...prev, {
         type: 'bot',
-        content: data?.chart_response ? "" : data?.text_output || data?.text_pre_code_response,
+        content: data?.chart_response ? "" : data?.text_output || (data?.text_pre_code_response || data?.message),
         plotsData: data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
         code: data?.code || "Not Found",
         data: data?.data ? JSON.parse(data?.data) : ""
