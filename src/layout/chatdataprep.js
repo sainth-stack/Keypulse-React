@@ -14,6 +14,58 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
     const [search, setSearch] = useState('')
     const [answers, setAnswers] = useState([]);
 
+    const safeParseMaybeJson = (value) => {
+        if (!value) return null;
+        if (typeof value === 'object') return value;
+        if (typeof value !== 'string') return null;
+        try {
+            const sanitized = value.replace(/\bNaN\b/g, 'null');
+            return JSON.parse(sanitized);
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const normalizeTableOutput = (textOutput) => {
+        if (!textOutput) return null;
+        let parsed = textOutput;
+        if (typeof textOutput === 'string') {
+            try {
+                parsed = JSON.parse(textOutput);
+            } catch (_) {
+                return null;
+            }
+        }
+        if (!parsed || typeof parsed !== 'object' || parsed.format !== 'table') return null;
+
+        let columns = Array.isArray(parsed.columns) ? parsed.columns : undefined;
+        let data = undefined;
+
+        if (Array.isArray(parsed.data)) {
+            data = parsed.data.map(row => (row && typeof row === 'object') ? row : {});
+            if (!columns) {
+                const setCols = new Set();
+                data.forEach(r => Object.keys(r).forEach(k => setCols.add(k)));
+                columns = Array.from(setCols);
+            }
+        } else if (parsed.data && typeof parsed.data === 'object') {
+            const colNames = Object.keys(parsed.data);
+            const maxLen = colNames.reduce((m, c) => Math.max(m, Array.isArray(parsed.data[c]) ? parsed.data[c].length : 0), 0);
+            data = Array.from({ length: maxLen }, (_, i) => {
+                const row = {};
+                colNames.forEach(c => {
+                    const arr = Array.isArray(parsed.data[c]) ? parsed.data[c] : [];
+                    row[c] = arr[i];
+                });
+                return row;
+            });
+            columns = columns || colNames;
+        }
+
+        if (!columns || !Array.isArray(data)) return null;
+        return { format: 'table', columns, data };
+    };
+
     const handleSubmit = () => {
         if (search.trim()) {
             handleQuestionClick(search);
@@ -49,11 +101,29 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
             );
             const ans = data.map((item) => {
                 if (item.question == question) {
+                    const responseData = safeParseMaybeJson(res?.data) || {};
+                    console.log('API Response:', responseData);
+                    console.log('text_output:', responseData.text_output);
+                    
+                    const tableOutput = normalizeTableOutput(responseData.text_output);
+                    console.log('Normalized table output:', tableOutput);
+                    
+                    const graphObj = responseData.chart_response || safeParseMaybeJson(responseData.plot);
+                    
+                    const tableHtml = (responseData.text_output && typeof responseData.text_output === 'object' && typeof responseData.text_output?.html === 'string') ? responseData.text_output?.html : null;
+                    console.log('Table HTML:', tableHtml);
+                    
+                    const content = tableOutput ? "" : ((responseData.chart_response || responseData.plot) ? "" : (typeof responseData.text_output === 'string' ? responseData.text_output : (responseData.text_pre_code_response)));
+                    console.log('Content:', content);
+                    console.log('Final item:', { tableOutput, tableHtml, content, graphObj });
+                    
                     return {
                         ...item,
                         view: "Text",
-                        answer: (res?.data?.chart_response || res?.data?.plot) ? "" : (res?.data?.text_output || res?.data?.text_pre_code_response),
-                        graph: res?.data?.chart_response || res?.data?.plot,
+                        answer: content,
+                        tableOutput,
+                        tableHtml,
+                        graph: graphObj,
                         loading: false,
                         isHtml: true // Add flag to indicate HTML content
                     }
@@ -161,7 +231,38 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                     <CircularProgress size={20} />
                   ) : (
                     <>
-                      {item.answer && item.isHtml ? (
+                      {item.tableOutput && item.tableOutput.columns && item.tableOutput.columns.length > 0 ? (
+                        <div style={{ width: '100%', overflowX: 'auto' }}>
+                          <table className="modern-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, backgroundColor: '#fff' }}>
+                            <thead>
+                              <tr>
+                                {item.tableOutput.columns?.map((col) => (
+                                  <th key={col} style={{ backgroundColor: '#f8fafc', padding: '12px', textAlign: 'left', fontWeight: 600, color: '#1a237e', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Array.isArray(item.tableOutput.data) && item.tableOutput.data.map((row, rowIdx) => (
+                                <tr key={rowIdx}>
+                                  {item.tableOutput.columns?.map((col) => (
+                                    <td key={col} style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', color: '#4a5568' }}>
+                                      {(row[col] === null || row[col] === undefined || (typeof row[col] === 'number' && Number.isNaN(row[col])) || row[col] === 'NaN') ? 'N/A' : String(row[col])}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : item.tableHtml ? (
+                        <div 
+                          dangerouslySetInnerHTML={{ __html: item.tableHtml }}
+                          style={{
+                            overflow: 'auto',
+                            maxHeight: '500px'
+                          }}
+                        />
+                      ) : item.answer && item.isHtml ? (
                         <div 
                           dangerouslySetInnerHTML={{ __html: item.answer }}
                           style={{
@@ -189,7 +290,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                         <AnswersChat2
                           question={item.question}
                           answer={item.answer}
-                          graph={typeof item.graph === 'string' ? JSON.parse(item.graph) : item.graph}
+                          graph={item.graph}
                           loading={false}
                           type={item.view}
                           name={"genbi"}

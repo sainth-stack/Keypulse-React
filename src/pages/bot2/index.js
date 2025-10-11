@@ -21,6 +21,76 @@ const Bot2 = () => {
   const [recentChats, setRecentChats] = useState([]);
   const [visualizationData, setVisualizationData] = useState(null);
 
+  const safeParseMaybeJson = (value) => {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
+    if (typeof value !== 'string') return null;
+    try {
+      // Replace bare NaN with null to avoid JSON.parse errors if present
+      const sanitized = value.replace(/\bNaN\b/g, 'null');
+      return JSON.parse(sanitized);
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const parseResponseJsonTolerant = async (response) => {
+    const raw = await response.text();
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      try {
+        const sanitized = raw.replace(/\bNaN\b/g, 'null');
+        return JSON.parse(sanitized);
+      } catch (e2) {
+        throw e2;
+      }
+    }
+  };
+
+  const normalizeTableOutput = (textOutput) => {
+    if (!textOutput) return null;
+    let parsed = textOutput;
+    if (typeof textOutput === 'string') {
+      try {
+        parsed = JSON.parse(textOutput);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (!parsed || typeof parsed !== 'object' || parsed.format !== 'table') return null;
+
+    // prefer provided columns + data if valid
+    let columns = Array.isArray(parsed.columns) ? parsed.columns : undefined;
+    let data = undefined;
+
+    if (Array.isArray(parsed.data)) {
+      // data is an array of row objects
+      data = parsed.data.map(row => (row && typeof row === 'object') ? row : {});
+      if (!columns) {
+        const columnSet = new Set();
+        data.forEach(row => Object.keys(row).forEach(k => columnSet.add(k)));
+        columns = Array.from(columnSet);
+      }
+    } else if (parsed.data && typeof parsed.data === 'object') {
+      // data is an object of column -> array values
+      const colNames = Object.keys(parsed.data);
+      const maxLen = colNames.reduce((m, c) => Math.max(m, Array.isArray(parsed.data[c]) ? parsed.data[c].length : 0), 0);
+      data = Array.from({ length: maxLen }, (_, i) => {
+        const row = {};
+        colNames.forEach(c => {
+          const colArr = Array.isArray(parsed.data[c]) ? parsed.data[c] : [];
+          row[c] = colArr[i];
+        });
+        return row;
+      });
+      columns = columns || colNames;
+    }
+
+    if (!columns || !Array.isArray(data)) return null;
+    return { format: 'table', columns, data };
+  };
+
   // Fetch and cache 'describe the data' response
   const fetchDescribeData = async (fileName = null) => {
     setIsInitialFileProcessing(true);
@@ -39,18 +109,21 @@ const Bot2 = () => {
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-      const data = await response.json();
+      const data = await parseResponseJsonTolerant(response);
       // Cache the result and file name
       localStorage.setItem('describeDataCache', JSON.stringify(data));
       if (fileName) {
         localStorage.setItem('describeDataCacheFileName', fileName);
       }
+      const tableOutput = normalizeTableOutput(data?.text_output);
+      const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : (data?.text_pre_code_response || data?.message)));
       setMessages(prev => [...prev, {
         type: 'bot',
-        content: data?.chart_response ? "" : data?.text_output || (data?.text_pre_code_response || data?.message),
-        plotsData: data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
+        content,
+        tableOutput,
+        plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
         code: data?.code || "Not Found",
-        data: data?.data ? JSON.parse(data?.data) : ""
+        data: safeParseMaybeJson(data?.data) || ""
       }]);
     } catch (error) {
       console.error('Error processing initial file:', error);
@@ -78,12 +151,15 @@ const Bot2 = () => {
     if (cached && cachedFileName && lastUploadedFileName && cachedFileName === lastUploadedFileName) {
       try {
         const data = JSON.parse(cached);
+        const tableOutput = normalizeTableOutput(data?.text_output);
+        const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
         setMessages(prev => [...prev, {
           type: 'bot',
-          content: data?.chart_response ? "" : data?.text_output || data?.text_pre_code_response,
-          plotsData: data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
+          content,
+          tableOutput,
+          plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
           code: data?.code || "Not Found",
-          data: data?.data ? JSON.parse(data?.data) : ""
+          data: safeParseMaybeJson(data?.data) || ""
         }]);
       } catch (e) {
         fetchDescribeData(lastUploadedFileName);
@@ -186,15 +262,18 @@ const Bot2 = () => {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
     
-      const data = await response.json();
+      const data = await parseResponseJsonTolerant(response);
+      const tableOutput = normalizeTableOutput(data?.text_output);
+      const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
       setMessages(prev => prev.map(msg => 
         msg.isLoading ? { ...msg, isLoading: false } : msg
       ).concat([{ 
         type: 'bot', 
-        content:data?.chart_response ? "" :data?.text_output || data?.text_pre_code_response,
-        plotsData:data?.chart_response || (data?.plot ? JSON.parse(data?.plot || `{}`):null),
+        content,
+        tableOutput,
+        plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
         code:data?.code || "Not Found",
-        data:data?.data ? JSON.parse(data?.data):""
+        data: safeParseMaybeJson(data?.data) || ""
       }]));
       // Log Query Answered event
       if (window && window.amplitude) {
@@ -286,6 +365,30 @@ const Bot2 = () => {
                     msg.content
                   )
                 ) : null}
+                {msg?.tableOutput && (
+                  <div style={{ width: '100%', overflowX: 'auto' }}>
+                    <table className="modern-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, backgroundColor: '#fff' }}>
+                      <thead>
+                        <tr>
+                          {msg.tableOutput.columns?.map((col) => (
+                            <th key={col} style={{ backgroundColor: '#f8fafc', padding: '12px', textAlign: 'left', fontWeight: 600, color: '#1a237e', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{col}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.isArray(msg.tableOutput.data) && msg.tableOutput.data.map((row, rowIdx) => (
+                          <tr key={rowIdx}>
+                            {msg.tableOutput.columns?.map((col) => (
+                              <td key={col} style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', color: '#4a5568' }}>
+                                {(row[col] === null || row[col] === undefined || (typeof row[col] === 'number' && Number.isNaN(row[col])) || row[col] === 'NaN') ? 'N/A' : String(row[col])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 {(msg?.code && msg?.code !== "Not Found") && (
               <Collapse>
                   <Collapse.Panel header="Code" key="msg-code">
