@@ -21,12 +21,19 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SessionStatus from "./components/SessionStatus";
 import DataSource from "./pages/data-source";
 import { ResetPassword } from "./pages/Auth/ResetPassword";
-import { useEffect } from "react";
 
-function App() {
+// Component to handle SessionStatus display based on route
+function SessionStatusWrapper() {
+  const location = useLocation();
+  const publicRoutes = ['/login', '/register', '/access-denied', '/reset-password'];
+  const shouldShowSessionStatus = !publicRoutes.includes(location.pathname);
+  
+  return shouldShowSessionStatus ? <SessionStatus showDetails={false} /> : null;
+}
 
+function AppRoutes() {
   return (
-    <BrowserRouter>
+    <>
       <Routes>
         {/* Protected routes wrapped with ProtectedRoute */}
         <Route path="/" element={
@@ -66,9 +73,15 @@ function App() {
       </Routes>
       
       {/* Session Status Display - only show on protected routes */}
-      {!['/login', '/register', '/access-denied', '/reset-password'].includes(window.location.pathname) && (
-        <SessionStatus showDetails={false} />
-      )}
+      <SessionStatusWrapper />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
