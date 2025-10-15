@@ -66,7 +66,7 @@ function App() {
       </Routes>
       
       {/* Session Status Display - only show on protected routes */}
-      {window.location.pathname !== '/login' && window.location.pathname !== '/register' && (
+      {!['/login', '/register', '/access-denied', '/reset-password'].includes(window.location.pathname) && (
         <SessionStatus showDetails={false} />
       )}
     </BrowserRouter>
