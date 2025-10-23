@@ -74,13 +74,13 @@ export const Resilience = () => {
                         <div style={{ display: "flex", justifyContent: 'start' }} onClick={(e) => { handleTooltip(e, setShow, true) }}><RxDotFilled cursor={"pointer"} color='#427ae3' onClick={() => { setLabel("inf") }} onMouseEnter={() => setHover("inf")} onMouseLeave={() => { setHover("") }} /> <RxDotFilled cursor={"pointer"} color='#800080' onClick={() => { setLabel("rec") }} onMouseEnter={() => setHover("rec")} onMouseLeave={() => { setHover("") }} /> <RxDotFilled cursor={"pointer"} color='#39c734' onClick={() => { setLabel("pre") }} onMouseEnter={() => setHover("pre")} onMouseLeave={() => { setHover("") }} /></div>
                         <div>
                             {/* <button className='btn btn-primary mb-2' onClick={() => setShow(!show)}>IPR</button> */}
-                            {hover == "inf" && <div className='card p-1' style={{ position: 'absolute', marginLeft: "0px", marginTop: "-20px", zIndex: 9999, alignItems: 'center' }}>
+                            {hover === "inf" && <div className='card p-1' style={{ position: 'absolute', marginLeft: "0px", marginTop: "-20px", zIndex: 9999, alignItems: 'center' }}>
                                 Inferences
                             </div>}
-                            {hover == "rec" && <div className='card p-1' style={{ position: 'absolute', marginLeft: "0px", marginTop: "-20px", zIndex: 9999, alignItems: 'center' }}>
+                            {hover === "rec" && <div className='card p-1' style={{ position: 'absolute', marginLeft: "0px", marginTop: "-20px", zIndex: 9999, alignItems: 'center' }}>
                                 Recommendations
                             </div>}
-                            {hover == "pre" && <div className='card p-1' style={{ position: 'absolute', marginLeft: "0px", marginTop: "-20px", zIndex: 9999, alignItems: 'center' }}>
+                            {hover === "pre" && <div className='card p-1' style={{ position: 'absolute', marginLeft: "0px", marginTop: "-20px", zIndex: 9999, alignItems: 'center' }}>
                                 Predictions
                             </div>}
                             {show && <div className='card p-2' style={{ position: 'absolute', marginLeft: "-300px", marginTop: "-20px", zIndex: 9999, width: '250px' }}>
@@ -122,15 +122,6 @@ export const Resilience = () => {
 
     const [apidata, setApiData] = useState([])
     // const [apidata2, setApiData2] = useState([])
-    const fetchData = async () => {
-        try {
-            await axios.get(`${ADAPTERS_BASE_URL}/resilience/getData`).then((response) => {
-                setApiData(response?.data.result);
-            });
-        } catch (err) {
-            console.log(err)
-        }
-    }
 
     useEffect(() => {
         if (selectedDS?.value === 'IOT') {
@@ -140,14 +131,14 @@ export const Resilience = () => {
             setSecond(false)
             setFirst(false)
         } else if (selectedDS?.value === 'Manual') {
-            setApiData([])
-            setSecond(false)
-            setFirst(false)
-            if (manualData) {
-                fetchData()
+            // Clear data only when switching to Manual mode, not when uploading
+            if (!manualData) {
+                setApiData([])
+                setSecond(false)
+                setFirst(false)
             }
         }
-    }, [selectedDS, manualData])
+    }, [selectedDS])
 
     const fileInputRef = useRef(null); // Explicit type
     const handleFileChange = (event) => {
@@ -196,33 +187,135 @@ export const Resilience = () => {
         downloadData()
     }
 
-    const handleUpload = async (data) => {
-        var formData = new FormData();
-        const finalData = []
-        for (let i = 0; i < data.length; i++) {
-            finalData.push(data[i])
+    // Parse CSV file content - handles quotes and commas within values
+    const parseCSV = (text) => {
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length === 0) return [];
+        
+        // Parse CSV line considering quotes
+        const parseLine = (line) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        };
+        
+        const headers = parseLine(lines[0]);
+        const rows = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseLine(lines[i]);
+            const row = {};
+            headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+            });
+            rows.push(row);
         }
+        return rows;
+    };
+
+    const handleUpload = async (files) => {
+        const finalData = []
+        for (let i = 0; i < files.length; i++) {
+            finalData.push(files[i])
+        }
+        
+        // Sort files according to namesResSort
         const uploadData = []
-        namesResSort.map(sortingObj => {
-            finalData.filter((item) => {
-                if (item.name == sortingObj.file) {
-                    uploadData.push(item)
+        namesResSort.forEach(sortingObj => {
+            finalData.forEach((file) => {
+                if (file.name === sortingObj.file) {
+                    uploadData.push(file)
                 }
             })
         });
 
+        console.log('Files to upload:', uploadData.map(f => f.name));
+
+        // Read and parse CSV files directly
+        const parsedDataArray = [];
+        
         for (let i = 0; i < uploadData.length; i++) {
-            formData.append('file', uploadData[i]);
-        }
-        try {
-            await axios.post(`${ADAPTERS_BASE_URL}/resilience/FileUpload`, formData)
-                .then((response) => {
-                    fetchData()
-                    setManualData(true)
+            const file = uploadData[i];
+            
+            try {
+                const text = await file.text();
+                const parsedRows = parseCSV(text);
+                
+                console.log(`Parsed ${file.name}:`, parsedRows);
+                
+                if (parsedRows.length === 0) {
+                    console.warn(`No data found in ${file.name}`);
+                    continue;
+                }
+                
+                // Find column names (case-insensitive)
+                const getColumnValue = (row, columnName) => {
+                    const key = Object.keys(row).find(k => k.toLowerCase() === columnName.toLowerCase());
+                    return row[key] || '';
+                };
+                
+                // Extract actual and planned values
+                const actualValues = parsedRows.map(row => {
+                    const val = getColumnValue(row, 'Actual');
+                    return isNaN(parseFloat(val)) ? 0 : parseFloat(val);
                 });
-        } catch (err) {
-            console.log(err)
+                
+                const plannedValues = parsedRows.map(row => {
+                    const val = getColumnValue(row, 'Planned');
+                    return isNaN(parseFloat(val)) ? 0 : parseFloat(val);
+                });
+                
+                // Structure data according to expected format
+                const structuredData = {
+                    name: file.name,
+                    data: [
+                        {
+                            name: "Actual",
+                            data: actualValues
+                        },
+                        {
+                            name: "Planned", 
+                            data: plannedValues
+                        }
+                    ],
+                    inference: getColumnValue(parsedRows[0], 'Inference'),
+                    predictions: getColumnValue(parsedRows[0], 'Predictions')
+                };
+                
+                console.log(`Structured data for ${file.name}:`, structuredData);
+                parsedDataArray.push(structuredData);
+            } catch (err) {
+                console.error(`Error reading file ${file.name}:`, err);
+                alert(`Error reading file ${file.name}. Please check the file format.`);
+            }
         }
+        
+        console.log('All parsed data:', parsedDataArray);
+        setApiData(parsedDataArray);
+        setManualData(true);
+        setFirst(false);
+        setSecond(false);
     }
 
     let datan = {
@@ -250,6 +343,19 @@ export const Resilience = () => {
         data9: getApiData(datan.data9) || [],
         data10: getApiData(datan.data10) || []
     }
+    
+    // Check if we have data for section headers
+    const hasFirstSection = finalData.data1.length > 0 || finalData.data2.length > 0 || 
+                           finalData.data3.length > 0 || finalData.data4.length > 0 || 
+                           finalData.data5.length > 0 || finalData.data6.length > 0;
+    const hasSecondSection = finalData.data7.length > 0 || finalData.data8.length > 0 || 
+                            finalData.data9.length > 0 || finalData.data10.length > 0;
+    
+    // Update section visibility flags
+    useEffect(() => {
+        setFirst(hasFirstSection);
+        setSecond(hasSecondSection);
+    }, [hasFirstSection, hasSecondSection]);
     const data = [
         {
             img: cyber,
@@ -482,9 +588,6 @@ export const Resilience = () => {
                 </div>
                 <div className="row gy-3 gx-3 mt-2">
                     {data.map((item, index) => {
-                        if ((item.series[0].data.length > 0 && index < 6) && !first) {
-                            setFirst(true)
-                        }
                         return (
                             <>{(item.series[0].data.length > 0 && index < 6) && <div className='col-lg-6 col-md-6 col-sm-6 cursor-pointer' style={{ cursor: "pointer" }} onClick={(e) => handlePopup(e, item.name, item.fullData)}>
                                 <Card img={item.img} text={item.name} series={item.series} data={item} />
@@ -506,9 +609,6 @@ export const Resilience = () => {
                 </div>
                 <div className="row gy-3 gx-3 mt-2">
                     {data.map((item, index) => {
-                        if ((item.series[0].data.length > 0 && index > 5) && !second) {
-                            setSecond(true)
-                        }
                         return (
                             <>{(item.series[0].data.length > 0 && index > 5) && <div className='col-lg-6 col-md-6 col-sm-6' style={{ cursor: "pointer" }} onClick={(e) => handlePopup(e, item.name, item.fullData)}>
                                 <Card img={item.img} text={item.name} series={item.series} data={item} />

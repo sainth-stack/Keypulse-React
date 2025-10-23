@@ -104,12 +104,12 @@ export const Sustainability = () => {
             setManualData(false)
             setApiData([])
         } else if (selectedDS?.value === 'Manual') {
-            setApiData([])
-            if (manualData) {
-                fetchData()
+            // Clear data only when switching to Manual mode, not when uploading
+            if (!manualData) {
+                setApiData([])
             }
         }
-    }, [selectedDS, manualData])
+    }, [selectedDS])
 
 
 
@@ -128,8 +128,54 @@ export const Sustainability = () => {
         }
     };
 
+    // Parse CSV file content - handles quotes and commas within values
+    const parseCSV = (text) => {
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length === 0) return [];
+        
+        // Parse CSV line considering quotes
+        const parseLine = (line) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        };
+        
+        const headers = parseLine(lines[0]);
+        const rows = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseLine(lines[i]);
+            const row = {};
+            headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+            });
+            rows.push(row);
+        }
+        return rows;
+    };
+
     const handleUpload = async (data) => {
-        var formData = new FormData();
         const finalData = []
         for (let i = 0; i < data?.length; i++) {
             finalData.push(data[i])
@@ -143,18 +189,143 @@ export const Sustainability = () => {
             })
         });
 
-        for (let i = 0; i < uploadData?.length; i++) {
-            formData.append('file', uploadData[i]);
+        console.log('Files to upload:', uploadData.map(f => f.name));
+
+        // Read and parse CSV files directly
+        const parsedDataArray = [];
+        
+        for (let i = 0; i < uploadData.length; i++) {
+            const file = uploadData[i];
+            
+            try {
+                const text = await file.text();
+                const parsedRows = parseCSV(text);
+                
+                console.log(`Parsed ${file.name}:`, parsedRows);
+                
+                if (parsedRows.length === 0) {
+                    console.warn(`No data found in ${file.name}`);
+                    continue;
+                }
+                
+                // Find column names (case-insensitive)
+                const getColumnValue = (row, columnName) => {
+                    const key = Object.keys(row).find(k => k.toLowerCase() === columnName.toLowerCase());
+                    return row[key] || '';
+                };
+                
+                // Get all column headers
+                const headers = Object.keys(parsedRows[0]);
+                
+                // Find special columns (check for both 'name' and 'month' as row identifiers)
+                const nameColumn = headers.find(h => h.toLowerCase() === 'name');
+                const monthColumn = headers.find(h => h.toLowerCase() === 'month');
+                const rowIdentifier = nameColumn || monthColumn;
+                
+                // Get data columns (exclude name/month, inference, predictions)
+                const dataColumns = headers.filter(h => 
+                    h.toLowerCase() !== 'name' && 
+                    h.toLowerCase() !== 'month' &&
+                    h.toLowerCase() !== 'inference' && 
+                    h.toLowerCase() !== 'predictions'
+                );
+                
+                let transformedData;
+                
+                // Check if this is a simple single-value file (only one data column)
+                if (dataColumns.length === 1) {
+                    // Simple format: extract values and labels from rows
+                    const valueColumn = dataColumns[0];
+                    const dataValues = [];
+                    const labels = [];
+                    
+                    parsedRows.forEach(row => {
+                        const rowId = row[rowIdentifier] || '';
+                        let value = row[valueColumn] || '';
+                        
+                        // Skip empty rows and summary rows
+                        if (!rowId || rowId.toLowerCase().includes('ytd') || rowId.toLowerCase().includes('total')) {
+                            return;
+                        }
+                        
+                        // Remove commas from numbers and handle special characters
+                        if (typeof value === 'string') {
+                            value = value.replace(/,/g, '').replace(/-/g, '0');
+                        }
+                        
+                        const numValue = parseFloat(value);
+                        dataValues.push(isNaN(numValue) ? 0 : numValue);
+                        labels.push(rowId.substring(0, 3)); // First 3 chars
+                    });
+                    
+                    transformedData = [{
+                        name: valueColumn,
+                        data: dataValues,
+                        label: labels
+                    }];
+                } else {
+                    // Multi-column format: each column is a data series (e.g., different equipment)
+                    // Transform columns to rows
+                    const seriesData = {};
+                    
+                    // Initialize arrays for each series
+                    dataColumns.forEach(col => {
+                        seriesData[col] = {
+                            name: col,
+                            data: [],
+                            label: []
+                        };
+                    });
+                    
+                    // Extract data for each row
+                    parsedRows.forEach(row => {
+                        const rowId = row[rowIdentifier] || '';
+                        
+                        // Skip empty rows and summary rows
+                        if (!rowId || rowId.toLowerCase().includes('ytd') || rowId.toLowerCase().includes('total')) {
+                            return;
+                        }
+                        
+                        dataColumns.forEach(col => {
+                            let value = row[col] || '';
+                            
+                            // Remove commas and handle special characters
+                            if (typeof value === 'string') {
+                                value = value.replace(/,/g, '').replace(/-/g, '0').replace(/%/g, '');
+                            }
+                            
+                            const numValue = parseFloat(value);
+                            seriesData[col].data.push(isNaN(numValue) ? 0 : numValue);
+                            
+                            // Add label only once per series
+                            if (seriesData[col].label.length < seriesData[col].data.length) {
+                                seriesData[col].label.push(rowId.substring(0, 3));
+                            }
+                        });
+                    });
+                    
+                    transformedData = Object.values(seriesData);
+                }
+                
+                // Structure data according to expected format
+                const structuredData = {
+                    name: file.name,
+                    data: transformedData,
+                    inference: getColumnValue(parsedRows[0], 'Inference'),
+                    predictions: getColumnValue(parsedRows[0], 'Predictions')
+                };
+                
+                console.log(`Structured data for ${file.name}:`, structuredData);
+                parsedDataArray.push(structuredData);
+            } catch (err) {
+                console.error(`Error reading file ${file.name}:`, err);
+                alert(`Error reading file ${file.name}. Please check the file format.`);
+            }
         }
-        try {
-            await axios.post(`${ADAPTERS_BASE_URL}/sustainability/FileUpload`, formData)
-                .then((response) => {
-                    setManualData(true)
-                    fetchData()
-                });
-        } catch (err) {
-            console.log(err)
-        }
+        
+        console.log('All parsed data:', parsedDataArray);
+        setApiData(parsedDataArray);
+        setManualData(true);
     }
 
 
@@ -555,36 +726,42 @@ export const Sustainability = () => {
             <div className="row ms-1" style={{ minHeight: "80vh" }}>
                 {apidata?.length > 0 && <div className="row gx-1 gy-1 p-2 pt-0">
                     {apidata?.map((item) => {
-                        if (item.name == "kpEnergy.csv") {
+                        if (item.name === "kpEnergy.csv") {
                             console.log(item)
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpWaste.csv") {
+                        if (item.name === "kpWaste.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpPlantation.csv") {
+                        if (item.name === "kpPlantation.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpWater.csv") {
+                        if (item.name === "kpWater.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpAltEnergy.csv") {
+                        if (item.name === "kpAltEnergy.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
 
                     {apidata?.map((item) => {
-                        if (item.name == "kpco2.csv") {
+                        if (item.name === "kpco2.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     <Popup {...{ showModal, setShowModal, headerTitle: title, children: getCharts()?.children, size: getCharts()?.size, fullscreen: getCharts()?.size == "xl" ? true : false, estimate: getCharts()?.estimate }} />
                 </div>}

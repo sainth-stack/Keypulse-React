@@ -101,12 +101,12 @@ export const InnerProductivity = () => {
             setManualData(false)
             setApiData([])
         } else if (selectedDS?.value === 'Manual') {
-            setApiData([])
-            if (manualData) {
-                fetchData()
+            // Clear data only when switching to Manual mode, not when uploading
+            if (!manualData) {
+                setApiData([])
             }
         }
-    }, [selectedDS, manualData])
+    }, [selectedDS])
 
     const data = [
         {
@@ -139,8 +139,54 @@ export const InnerProductivity = () => {
         }
     };
 
+    // Parse CSV file content - handles quotes and commas within values
+    const parseCSV = (text) => {
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length === 0) return [];
+        
+        // Parse CSV line considering quotes
+        const parseLine = (line) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        };
+        
+        const headers = parseLine(lines[0]);
+        const rows = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseLine(lines[i]);
+            const row = {};
+            headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+            });
+            rows.push(row);
+        }
+        return rows;
+    };
+
     const handleUpload = async (data) => {
-        var formData = new FormData();
         const finalData = []
         for (let i = 0; i < data.length; i++) {
             finalData.push(data[i])
@@ -154,18 +200,141 @@ export const InnerProductivity = () => {
             })
         });
 
+        console.log('Files to upload:', uploadData.map(f => f.name));
+
+        // Read and parse CSV files directly
+        const parsedDataArray = [];
+        
         for (let i = 0; i < uploadData.length; i++) {
-            formData.append('file', uploadData[i]);
+            const file = uploadData[i];
+            
+            try {
+                const text = await file.text();
+                const parsedRows = parseCSV(text);
+                
+                console.log(`Parsed ${file.name}:`, parsedRows);
+                
+                if (parsedRows.length === 0) {
+                    console.warn(`No data found in ${file.name}`);
+                    continue;
+                }
+                
+                // Find column names (case-insensitive)
+                const getColumnValue = (row, columnName) => {
+                    const key = Object.keys(row).find(k => k.toLowerCase() === columnName.toLowerCase());
+                    return row[key] || '';
+                };
+                
+                // Get all column headers
+                const headers = Object.keys(parsedRows[0]);
+                
+                // Find special columns
+                const monthColumn = headers.find(h => h.toLowerCase() === 'month');
+                
+                // Get data columns (exclude month, inference, predictions)
+                const dataColumns = headers.filter(h => 
+                    h.toLowerCase() !== 'month' && 
+                    h.toLowerCase() !== 'inference' && 
+                    h.toLowerCase() !== 'predictions'
+                );
+                
+                let transformedData;
+                
+                // Check if this is a simple single-value file (like kpUnitsYTD, kpUnitsLost, kpPlantProd)
+                // These have only 2 data columns: Month and one value column
+                if (dataColumns.length === 1) {
+                    // Simple format: extract values and labels from rows
+                    const valueColumn = dataColumns[0];
+                    const dataValues = [];
+                    const labels = [];
+                    
+                    parsedRows.forEach(row => {
+                        const monthValue = row[monthColumn] || '';
+                        let value = row[valueColumn] || '';
+                        
+                        // Skip empty rows and summary rows
+                        if (!monthValue || monthValue.toLowerCase().includes('ytd')) {
+                            return;
+                        }
+                        
+                        // Remove commas from numbers (e.g., "33,314" -> "33314")
+                        if (typeof value === 'string') {
+                            value = value.replace(/,/g, '').replace(/-/g, '0');
+                        }
+                        
+                        const numValue = parseFloat(value);
+                        dataValues.push(isNaN(numValue) ? 0 : numValue);
+                        labels.push(monthValue.substring(0, 3)); // First 3 chars of month
+                    });
+                    
+                    transformedData = [{
+                        name: valueColumn,
+                        data: dataValues,
+                        label: labels
+                    }];
+                } else {
+                    // Equipment-based format: each column is an equipment type
+                    // Transform columns to rows
+                    const equipmentData = {};
+                    
+                    // Initialize arrays for each equipment
+                    dataColumns.forEach(col => {
+                        equipmentData[col] = {
+                            name: col,
+                            data: [],
+                            label: []
+                        };
+                    });
+                    
+                    // Extract data for each month
+                    parsedRows.forEach(row => {
+                        const monthValue = row[monthColumn] || '';
+                        
+                        // Skip empty rows and summary rows
+                        if (!monthValue || monthValue.toLowerCase().includes('ytd') || monthValue.toLowerCase().includes('total')) {
+                            return;
+                        }
+                        
+                        dataColumns.forEach(col => {
+                            let value = row[col] || '';
+                            
+                            // Remove commas and handle special characters
+                            if (typeof value === 'string') {
+                                value = value.replace(/,/g, '').replace(/-/g, '0').replace(/%/g, '');
+                            }
+                            
+                            const numValue = parseFloat(value);
+                            equipmentData[col].data.push(isNaN(numValue) ? 0 : numValue);
+                            
+                            // Add label only once per equipment
+                            if (equipmentData[col].label.length < equipmentData[col].data.length) {
+                                equipmentData[col].label.push(monthValue.substring(0, 3));
+                            }
+                        });
+                    });
+                    
+                    transformedData = Object.values(equipmentData);
+                }
+                
+                // Structure data according to expected format
+                const structuredData = {
+                    name: file.name,
+                    data: transformedData,
+                    inference: getColumnValue(parsedRows[0], 'Inference'),
+                    predictions: getColumnValue(parsedRows[0], 'Predictions')
+                };
+                
+                console.log(`Structured data for ${file.name}:`, structuredData);
+                parsedDataArray.push(structuredData);
+            } catch (err) {
+                console.error(`Error reading file ${file.name}:`, err);
+                alert(`Error reading file ${file.name}. Please check the file format.`);
+            }
         }
-        try {
-            await axios.post(`${ADAPTERS_BASE_URL}/productivity/FileUpload`, formData)
-                .then((response) => {
-                    fetchData()
-                    setManualData(true)
-                });
-        } catch (err) {
-            console.log(err)
-        }
+        
+        console.log('All parsed data:', parsedDataArray);
+        setApiData(parsedDataArray);
+        setManualData(true);
     }
 
     const handleReports = async () => {
@@ -560,44 +729,52 @@ export const InnerProductivity = () => {
             <div className="row ms-1" style={{ minHeight: "100vh" }}>
                 {apidata.length > 0 && <div className="row gx-1 gy-1 p-2 pt-0">
                     {apidata?.map((item) => {
-                        if (item.name == "kpUnitsYTD.csv") {
+                        if (item.name === "kpUnitsYTD.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpUnitsLost.csv") {
+                        if (item.name === "kpUnitsLost.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpPlantProd.csv") {
+                        if (item.name === "kpPlantProd.csv") {
                             return handleGetData(item.name, item.data, item.inference, item.predictions)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpUtilization.csv") {
+                        if (item.name === "kpUtilization.csv") {
                             return handleGetData(item.name, item.data)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpLostCause.csv") {
+                        if (item.name === "kpLostCause.csv") {
                             return handleGetData(item.name, item.data)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpUptime.csv") {
+                        if (item.name === "kpUptime.csv") {
                             return handleGetData(item.name, item.data)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpThroughput.csv") {
+                        if (item.name === "kpThroughput.csv") {
                             return handleGetData(item.name, item.data)
                         }
+                        return null;
                     })}
                     {apidata?.map((item) => {
-                        if (item.name == "kpOpEx.csv") {
+                        if (item.name === "kpOpEx.csv") {
                             return handleGetData(item.name, item.data)
                         }
+                        return null;
                     })}
                     <Popup {...{ showModal, setShowModal, headerTitle: title, children: getCharts()?.children, size: getCharts()?.size, fullscreen: getCharts()?.size == "xl" ? true : false, estimate: getCharts()?.estimate }} />
                 </div>}
