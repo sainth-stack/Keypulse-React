@@ -25,12 +25,12 @@ export default function Sidebar({ }) {
   if (hasUserPermission) adminPaths.push({ path: "/users", name: "Users" });
   if (hasRolePermission) adminPaths.push({ path: "/roles", name: "Roles" });
   const sidebarItems = [
-    {
-      path: "/data-source",
-      name: "Data Source",
-      icon: <MdStorage size={20} />, 
-      permission: "home_Read"
-    },
+    // {
+    //   path: "/data-source",
+    //   name: "Data Source",
+    //   icon: <MdStorage size={20} />, 
+    //   permission: "home_Read"
+    // },
     {
       path: "/",
       name: "Home",
@@ -38,37 +38,37 @@ export default function Sidebar({ }) {
       permission: "home_Read",
       paths: ['/home', '/']
     },
-    {
-      path: "/data-analysis",
-      name: "Data Analysis",
-      icon: <BiAnalyse size={20} />,
-      permission: "data_analysis_Read"
-    },
-    {
-      path: "/visualizations",
-      name: "Visualizations",
-      icon: <BiAnalyse size={20} />,
-      permission: "visualizations_Read"
-    },
-    {
-      path: "/missing-value",
-      name: "Missing Value Treatment",
-      icon: <RiFileWarningLine size={20} />,
-      permission: "missing_value_treatment_Read"
-    },
-    {
-      path: "/ai-models",
-      name: "AI and Models",
-      icon: <AiOutlineRobot size={20} />,
-      permission: "ai_models_Read"
-    },
-    {
-      path: "/kpi",
-      name: "KPI",
-      icon: <IoStatsChartOutline size={20} />,
-      permission: "kpi_Read"
-    }
-  ].filter(item => permissions.includes(item.permission)) || [];
+    // {
+    //   path: "/data-analysis",
+    //   name: "Data Analysis",
+    //   icon: <BiAnalyse size={20} />,
+    //   permission: "data_analysis_Read"
+    // },
+    // {
+    //   path: "/visualizations",
+    //   name: "Visualizations",
+    //   icon: <BiAnalyse size={20} />,
+    //   permission: "visualizations_Read"
+    // },
+    // {
+    //   path: "/missing-value",
+    //   name: "Missing Value Treatment",
+    //   icon: <RiFileWarningLine size={20} />,
+    //   permission: "missing_value_treatment_Read"
+    // },
+    // {
+    //   path: "/ai-models",
+    //   name: "AI and Models",
+    //   icon: <AiOutlineRobot size={20} />,
+    //   permission: "ai_models_Read"
+    // },
+    // {
+    //   path: "/kpi",
+    //   name: "KPI",
+    //   icon: <IoStatsChartOutline size={20} />,
+    //   permission: "kpi_Read"
+    // }
+  ];
 console.log(sidebarItems,'dsfjks');
   // Function to check if current path is accessible
   const isPathAccessible = (path) => {
@@ -88,11 +88,11 @@ console.log(sidebarItems,'dsfjks');
   };
 
   // Redirect if trying to access unauthorized path
-  React.useEffect(() => {
-    if (!isPathAccessible(location.pathname)) {
-      navigate("/access-denied"); // Or your preferred unauthorized access route
-    }
-  }, [location.pathname, navigate]);
+  // React.useEffect(() => {
+  //   if (!isPathAccessible(location.pathname)) {
+  //     navigate("/access-denied"); // Or your preferred unauthorized access route
+  //   }
+  // }, [location.pathname, navigate]);
 
   return (
     <div className="main-container">
@@ -114,7 +114,7 @@ console.log(sidebarItems,'dsfjks');
             </li>
           ))}
           
-          {hasAnyAdminPermission && (
+          {(
             <li className={`sidebar-item mt-2 has-dropdown ${
               location.pathname.startsWith("/admin") ? "active" : ""
             }`}>

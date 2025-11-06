@@ -117,7 +117,7 @@ export default function DataSource() {
       // Reset the initial load flag so files get re-sorted with current selections
       setInitialLoadComplete(false);
     } catch (e) {
-      toast.error('Failed to fetch files');
+      // toast.error('Failed to fetch files');
     } finally {
       setLoading(false);
     }
@@ -260,6 +260,15 @@ export default function DataSource() {
     setReplaceLoading(false);
   };
 
+  // Mark that CEO graphs should be shown (using static data in home page)
+  const markCEOGraphsReady = (fileName) => {
+    // Just set a flag in localStorage to indicate CEO graphs should be shown
+    localStorage.setItem('showCeoGraphs', JSON.stringify({
+      fileName: fileName,
+      timestamp: new Date().toISOString()
+    }));
+  };
+
   const uploadFiles = async (files, fileDescriptions = {}) => {
     setIsUploading(true);
     const formData = new FormData();
@@ -282,6 +291,12 @@ export default function DataSource() {
       toast.success('Files uploaded successfully!');
       logAmplitudeEvent('File Upload', { userId, fileCount: files.length, fileNames: files.map(f => f.name) });
       console.log('[Amplitude] File Upload event sent', files.map(f => f.name));
+      
+      // Mark that CEO graphs should be shown for the first uploaded file
+      if (files.length > 0) {
+        markCEOGraphsReady(files[0].name);
+      }
+      
       fetchFiles();
       setShowFileExistsModal(false);
       setDuplicateFiles([]);
@@ -403,6 +418,12 @@ export default function DataSource() {
         body: formData,
       });
       if (!response.ok) throw new Error('Failed to update file name');
+      
+      // Mark that CEO graphs should be shown for the selected files
+      if (validSelectedFiles.length > 0) {
+        markCEOGraphsReady(validSelectedFiles[0]);
+      }
+      
       toast.success('Files selected!');
       localStorage.setItem('fileName', JSON.stringify(validSelectedFiles));
       navigate('/');

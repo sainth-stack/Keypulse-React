@@ -64,11 +64,11 @@ export default function Sidebar({ }) {
   };
 
   // Redirect if trying to access unauthorized path
-  React.useEffect(() => {
-    if (!isPathAccessible(location.pathname)) {
-      navigate("/access-denied");
-    }
-  }, [location.pathname, navigate]);
+  // React.useEffect(() => {
+  //   if (!isPathAccessible(location.pathname)) {
+  //     navigate("/access-denied");
+  //   }
+  // }, [location.pathname, navigate]);
 
   return (
     <div className="main-container">

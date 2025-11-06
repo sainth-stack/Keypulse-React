@@ -70,16 +70,16 @@ export const Login = () => {
       ];
       
       const hasAppPermission = permissions.some(p => appPermissions.includes(p));
-      if (!hasAppPermission) {
-        const adminPath = adminPaths.find(ap => permissions.some(p => p.startsWith(ap.prefix)));
-        if (adminPath) {
-          navigate(adminPath.path);
-        } else {
-          navigate('/access-denied');
-        }
-        return permissions;
-      }
-      navigate('/data-source');
+      // if (!hasAppPermission) {
+      //   const adminPath = adminPaths.find(ap => permissions.some(p => p.startsWith(ap.prefix)));
+      //   if (adminPath) {
+      //     navigate(adminPath.path);
+      //   } else {
+      //     navigate('/access-denied');
+      //   }
+      //   return permissions;
+      // }
+      navigate('/');
       setLoading(false);
       return permissions;
     } catch (error) {
@@ -227,7 +227,7 @@ export const Login = () => {
     <div className="container-fluid row m-0 p-0 vh-100">
       <div className="col-md-6 col-xs-12 col-sm-12 text-center pt-lg-5 mt-lg-5">
         <div className="pt-5">
-          <img className="logo1" src={Logo} alt="Logo" width={100} height={100}/>
+          <img className="logo1" src={Logo} alt="Logo" width={200} height={50}/>
         </div>
         <div className="row mt-3">
           <div className="col-md-9 col-lg-9 col-sm-12 col-xs-12 mx-auto">
@@ -331,7 +331,7 @@ export const Login = () => {
       
       <div className="col-md-6 p-0 m-0 bg-biscuit text-center pt-4 pb-4 d-none d-lg-block">
         <h5 className="text-green font-weight-bold mt-2" style={{fontWeight:700,fontSize:'28px'}}>
-          WELCOME TO DATAPX1
+          WELCOME TO DATONIX
         </h5>
         <div className="d-flex justify-content-center">
           <div className="col-md-10" style={{borderRadius:'30px'}}>

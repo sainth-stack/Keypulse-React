@@ -17,7 +17,7 @@ const Bot = () => {
       borderRadius: '20px',
       position: 'relative'
     }}>
-      <h1 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Welcome to DataPX1</h1>
+      <h1 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Welcome to  Datonix</h1>
       {fileName && (
         <div style={{
           position: 'absolute',

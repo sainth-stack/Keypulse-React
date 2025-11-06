@@ -49,7 +49,7 @@
   background: white;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  width: 80%;
+  width: 100%;
   height: 80vh;
   display: flex;
   flex-direction: column;
@@ -84,10 +84,9 @@
 
 .chat-messages .user-message,
 .chat-messages .bot-message {
-  padding: 12px 16px;
+  /* padding: 12px 16px; */
   margin: 0;
-  border-radius: 12px;
-  max-width: 70%;
+  border-radius: 8px;
   line-height: 1.5;
   font-size: 14px;
   white-space: pre-wrap;
@@ -96,15 +95,18 @@
 }
 
 .bot-message {
-  background-color: #f1f3f4;
-  color: #1a1a1a;
+  background-color: transparent;
+  color: #1e293b;
   align-self: flex-start;
+  max-width: 100%;
+  padding: 0;
 }
 
 .user-message {
-  background-color: #4a90e2;
+  background-color: #3b82f6;
   color: white;
   align-self: flex-end;
+  max-width: 60%;
 }
 
 .chat-input-form {
@@ -256,4 +258,232 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* CEO Dashboard Styles */
+.ceo-dashboard {
+  padding: 20px;
+  margin: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.ceo-dashboard-title {
+  color: white;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.ceo-graphs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 20px;
+}
+
+.ceo-graph-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ceo-graph-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.ceo-graph-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.ceo-graph-description {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+/* Responsive Design for CEO Dashboard */
+@media (max-width: 1024px) {
+  .ceo-graphs-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ceo-dashboard {
+    margin: 10px;
+    padding: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ceo-dashboard {
+    margin: 5px;
+    padding: 10px;
+  }
+  
+  .ceo-dashboard-title {
+    font-size: 20px;
+  }
+  
+  .ceo-graph-card {
+    padding: 15px;
+  }
+}
+
+/* KPI Summary Styles */
+.kpi-card {
+  transition: box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+/* Insight and Recommendation Styles */
+.insight-item, .recommendation-item {
+  transition: background-color 0.2s ease;
+}
+
+.insight-item:hover, .recommendation-item:hover {
+  background-color: #f1f5f9;
+}
+
+/* Chart Insight Styles */
+.chart-insight-card {
+  transition: background-color 0.2s ease;
+}
+
+.chart-insight-card:hover {
+  background-color: #f8fafc;
+}
+
+/* Overall Summary Styles */
+.overall-summary-card {
+  transition: background-color 0.2s ease;
+}
+
+.overall-summary-card:hover {
+  background-color: #f1f5f9;
+}
+
+/* Responsive adjustments for new components */
+@media (max-width: 768px) {
+  .bot-message {
+    max-width: 95% !important;
+  }
+  
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 992px) {
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Smooth scrolling for chat messages */
+.chat-messages {
+  scroll-behavior: smooth;
+}
+
+/* Code block styling */
+.code-block-container {
+  position: relative;
+  margin: 10px 0;
+}
+
+.copy-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s;
+  z-index: 10;
+}
+
+.copy-button:hover {
+  background-color: #357ab7;
+}
+
+.code-block {
+  background-color: #f4f4f4;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 40px 15px 15px 15px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.code-block code {
+  color: #333;
+}
+
+/* Modern table styling */
+.modern-table {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.modern-table thead tr th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modern-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.modern-table tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Plot container enhancements */
+.plot-container {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+/* Loading spinner enhancements */
+.spinner-container {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Collapse panel styling */
+.ant-collapse {
+  background-color: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.ant-collapse-header {
+  font-weight: 600;
+  color: #2d3748 !important;
+}
+
+.ant-collapse-content {
+  border-top: 1px solid #e2e8f0;
 }
