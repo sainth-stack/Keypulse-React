@@ -111,6 +111,14 @@ export const Login = () => {
       
       const userData = response.data?.user;
       
+      console.log('Login Response:', response.data); // Debug: Check what we get from API
+      
+      // Check for first-time login (last_login is null or empty)
+      if (!response.data?.user?.last_login) {
+        navigate(`/reset-password?email=${encodeURIComponent(response.data?.user?.email)}&user_id=${encodeURIComponent(response.data?.user?.id)}&first_time=true`);
+        return;
+      }
+      
       // Log successful login
       logAmplitudeEvent('Login Success', { 
         email: trimmedEmail, 
