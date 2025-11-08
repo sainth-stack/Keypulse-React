@@ -761,7 +761,7 @@ export default function DataSource() {
             onChange={handleFileChange}
             disabled={isUploading}
             multiple 
-            accept=".csv,.xml" 
+            accept=".csv,.xml,.pdf" 
           />
           <div className="thumbnail-wrapper">
             <FaPlus className="plus-icon" />
