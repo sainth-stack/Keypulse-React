@@ -4,6 +4,8 @@ import React, { useEffect, useState, useRef } from "react";
 // import userprofile from '../../assets/images/userprofile.png'
 import { useNavigate } from "react-router-dom";
 import Logo from '../../assets/images/logo3.png'
+import Logo34 from '../../assets/images/logo-34.png'
+
 import Logo2 from '../../assets/images/ai-priori.png'
 import kalmar from '../../assets/images/ai-priori2.png'
 import { AiTwotoneCalendar } from 'react-icons/ai'
@@ -39,14 +41,18 @@ function Navbar() {
       <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm sticky-top bg-white-fixed" style={{zIndex:500}}>
         <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingLeft:'40px',cursor:'pointer'}} id="navbarNav" onClick={()=>navigate('/')}>
           <img
-            src={Logo}
-            style={{ width: '70px',height:'70px' }}
+            src={Logo34}
+            style={{ width: '80px',height:'70px' }}
             id="logo_RL"
           />
         </div>
 
         <div className="position-absolute w-100 d-flex justify-content-center" style={{ pointerEvents: 'none' }}>
-          <h2 style={{fontSize:'30px',fontWeight:'bold'}} className="m-0">DataPX1</h2>
+        <img
+            src={Logo}
+            style={{ width: '200px',height:'50px' }}
+            id="logo_RL"
+          />
         </div>
 
         <div class="nav-item ms-1 dropdown d-flex align-items-center mr-0 pr-0" style={{ color: 'black' }}>

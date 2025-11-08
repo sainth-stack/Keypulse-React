@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './index.css';
 import Plot from 'react-plotly.js';
 import Spinner from 'react-bootstrap/Spinner';
-import { Spin, Collapse, message } from 'antd';
+import { Collapse } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
 import Bot from '../bot';
 import { API_URL } from '../../const';
@@ -12,14 +12,12 @@ import { logAmplitudeEvent } from '../../utils';
 const Bot2 = () => {
   const [message, setMessage] = useState('');
   const [file, setFile] = useState(localStorage.getItem('fileName') || '');
-  const [messageType, setMessageType] = useState('text');
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialFileProcessing, setIsInitialFileProcessing] = useState(false);
   const [messages, setMessages] = useState([
     
   ]);
   const [recentChats, setRecentChats] = useState([]);
-  const [visualizationData, setVisualizationData] = useState(null);
 
   const safeParseMaybeJson = (value) => {
     if (!value) return null;
@@ -99,7 +97,7 @@ const Bot2 = () => {
     try {
       const formData = new FormData();
       formData.append('prompt', 'explain about the data');
-      const response = await fetch(`${API_URL}/genai_bot`, {
+      const response = await fetch(`${API_URL}/get_insights`, {
         method: 'POST',
         headers: {
           'X-User-ID': userId,
@@ -123,7 +121,14 @@ const Bot2 = () => {
         tableOutput,
         plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
         code: data?.code || "Not Found",
-        data: safeParseMaybeJson(data?.data) || ""
+        data: safeParseMaybeJson(data?.data) || "",
+        // New format fields
+        kpiSummary: data?.kpi_summary,
+        executiveInsights: data?.executive_insights,
+        strategicRecommendations: data?.strategic_recommendations,
+        chartInsights: data?.chart_insights,
+        charts: data?.charts,
+        overallSummary: data?.overall_summary
       }]);
     } catch (error) {
       console.error('Error processing initial file:', error);
@@ -159,7 +164,14 @@ const Bot2 = () => {
           tableOutput,
           plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
           code: data?.code || "Not Found",
-          data: safeParseMaybeJson(data?.data) || ""
+          data: safeParseMaybeJson(data?.data) || "",
+          // New format fields
+          kpiSummary: data?.kpi_summary,
+          executiveInsights: data?.executive_insights,
+          strategicRecommendations: data?.strategic_recommendations,
+          chartInsights: data?.chart_insights,
+          charts: data?.charts,
+          overallSummary: data?.overall_summary
         }]);
       } catch (e) {
         fetchDescribeData(lastUploadedFileName);
@@ -248,7 +260,8 @@ const Bot2 = () => {
     try {
       setIsLoading(true); 
     
-      const endpoint = `${API_URL}/genai_bot`;
+      // Use interactive bot API for follow-up user questions
+      const endpoint = `${API_URL}/gen_ai_interactive_bot`;
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -264,7 +277,11 @@ const Bot2 = () => {
     
       const data = await parseResponseJsonTolerant(response);
       const tableOutput = normalizeTableOutput(data?.text_output);
-      const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
+      const postHtml = typeof data?.text_post_code_response === 'string' ? data.text_post_code_response : null;
+      const preHtml = typeof data?.text_pre_code_response === 'string' ? data.text_pre_code_response : null;
+      // Prefer provided HTML, otherwise if text_output is an object, pretty print it inside a <pre>
+      const objectOutput = (data?.text_output && typeof data.text_output === 'object' && !Array.isArray(data.text_output)) ? `<pre>${JSON.stringify(data.text_output, null, 2)}</pre>` : null;
+      const content = tableOutput ? "" : (data?.chart_response ? "" : (postHtml || preHtml || (typeof data?.text_output === 'string' ? data?.text_output : (objectOutput || ''))));
       setMessages(prev => prev.map(msg => 
         msg.isLoading ? { ...msg, isLoading: false } : msg
       ).concat([{ 
@@ -273,17 +290,21 @@ const Bot2 = () => {
         tableOutput,
         plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
         code:data?.code || "Not Found",
-        data: safeParseMaybeJson(data?.data) || ""
+        data: safeParseMaybeJson(data?.data) || "",
+        // New format fields
+        kpiSummary: data?.kpi_summary,
+        executiveInsights: data?.executive_insights,
+        strategicRecommendations: data?.strategic_recommendations,
+        chartInsights: data?.chart_insights,
+        charts: data?.charts,
+        overallSummary: data?.overall_summary
       }]));
       // Log Query Answered event
       if (window && window.amplitude) {
-        logAmplitudeEvent('Query Answered', { query: message, answer: data?.text_output || data?.text_pre_code_response, fileName });
+        const answerForLog = typeof data?.text_output === 'string' ? data.text_output : (postHtml || preHtml || '');
+        logAmplitudeEvent('Query Answered', { query: message, answer: answerForLog, fileName });
       }
       setRecentChats(prev => [...prev, { question: message, answer: data?.result }]);
-    
-      if (messageType === 'graph') {
-        setVisualizationData(data?.chartData);
-      }
     } catch (error) {
       console.error('Error:', error);
       
@@ -350,36 +371,352 @@ const Bot2 = () => {
                 className={`${msg.type}-message`}
                 style={{
                   display: "flex",
-                  width: msg.question ? "fit-content" : "100%", // 50% for questions, 100% for answers
+                  width: msg.question ? "fit-content" : "100%",
                   flexDirection: "column",
-                  gap: "10px",
+                  gap: "12px",
                   maxWidth: "100%",
                   alignSelf: msg.question ? "flex-end" : "flex-start",
-                  alignItems: msg.question ? "flex-end" : "flex-start", // Align content accordingly
+                  alignItems: msg.question ? "flex-end" : "flex-start",
                 }}
               >
                 {msg?.content ? (
                   msg.type === "bot" ? (
-                    <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                    <div style={{ 
+                      fontSize: '14px', 
+                      color: '#475569', 
+                      lineHeight: '1.6',
+                      marginBottom: '8px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                      backgroundColor: '#ffffff'
+                    }} dangerouslySetInnerHTML={{ __html: msg.content }} />
                   ) : (
-                    msg.content
+                    <div style={{
+                      padding: '12px 16px',
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      borderRadius: '8px',
+                      maxWidth: 'fit-content'
+                    }}>
+                      {msg.content}
+                    </div>
                   )
                 ) : null}
+
+                {/* Structured text_output rendering (interactive API) */}
+                {msg?.structuredOutput && (
+                  <div style={{ width: '100%', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fff' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#2d3748' }}>Report</h3>
+                    </div>
+                    <div style={{ padding: '12px 16px', overflowX: 'auto' }}>
+                      <pre style={{ margin: 0, fontSize: '12px', lineHeight: 1.6, color: '#334155' }}>
+{JSON.stringify(msg.structuredOutput, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {/* Overall Summary */}
+                {msg?.overallSummary && (
+                  <div className="overall-summary-card" style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '20px', 
+                    borderRadius: '8px', 
+                    marginBottom: '24px',
+                    border: '1px solid #e2e8f0',
+                    width: '100%'
+                  }}>
+                    <h3 style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#2d3748', 
+                      marginBottom: '12px',
+                      marginTop: 0
+                    }}>
+                      Overall Summary
+                    </h3>
+                    <p style={{ fontSize: '14px', color: '#4a5568', lineHeight: '1.6', margin: 0 }}>
+                      {msg.overallSummary}
+                    </p>
+                  </div>
+                )}
+
+                {/* KPI Summary Cards */}
+                {msg?.kpiSummary && Array.isArray(msg.kpiSummary) && msg.kpiSummary.length > 0 && (
+                  <div style={{ marginBottom: '24px', width: '100%' }}>
+                    <h3 style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#2d3748', 
+                      marginBottom: '16px',
+                      marginTop: 0
+                    }}>
+                      Key Performance Indicators
+                    </h3>
+                    <div className="kpi-grid" style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                      gap: '12px',
+                      width: '100%'
+                    }}>
+                      {msg.kpiSummary.map((kpi, idx) => (
+                        <div key={idx} className="kpi-card" style={{
+                          backgroundColor: '#fff',
+                          padding: '16px',
+                          borderRadius: '6px',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                          position: 'relative'
+                        }}>
+                          <div style={{ 
+                            position: 'absolute', 
+                            top: '10px', 
+                            right: '10px',
+                            fontSize: '10px',
+                            fontWeight: '500',
+                            color: kpi.status === 'good' ? '#10b981' : 
+                                   kpi.status === 'warning' ? '#f59e0b' : '#ef4444',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            <span style={{ fontSize: '12px', lineHeight: 1 }} aria-hidden="true">
+                              {kpi.status === 'good' ? '✔️' : (kpi.status === 'warning' ? '⚠️' : '❌')}
+                            </span>
+                            {kpi.status}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '500', marginBottom: '8px', paddingRight: '60px' }}>
+                            {kpi.name}
+                          </div>
+                          <div style={{ fontSize: '24px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
+                            {typeof kpi.value === 'number' ? kpi.value.toLocaleString() : kpi.value}
+                          </div>
+                          {kpi.target !== null && kpi.target !== undefined && (
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              Target: {typeof kpi.target === 'number' ? kpi.target.toLocaleString() : kpi.target}
+                            </div>
+                          )}
+                          {kpi.impact && (
+                            <div style={{ 
+                              fontSize: '10px', 
+                              color: '#64748b',
+                              marginTop: '6px',
+                              fontWeight: '500',
+                              textTransform: 'capitalize'
+                            }}>
+                              Impact: {kpi.impact}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Executive Insights and Strategic Recommendations Side by Side */}
+                {((msg?.executiveInsights && Array.isArray(msg.executiveInsights) && msg.executiveInsights.length > 0) || 
+                  (msg?.strategicRecommendations && Array.isArray(msg.strategicRecommendations) && msg.strategicRecommendations.length > 0)) && (
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+                    gap: '16px', 
+                    marginBottom: '24px',
+                    width: '100%'
+                  }}>
+                    {/* Executive Insights */}
+                    {msg?.executiveInsights && Array.isArray(msg.executiveInsights) && msg.executiveInsights.length > 0 && (
+                      <div>
+                        <h3 style={{ 
+                          fontSize: '16px', 
+                          fontWeight: '600', 
+                          color: '#2d3748', 
+                          marginBottom: '12px',
+                          marginTop: 0
+                        }}>
+                          Executive Insights
+                        </h3>
+                        <ul style={{ 
+                          listStyle: 'none', 
+                          padding: 0, 
+                          margin: 0 
+                        }}>
+                          {msg.executiveInsights.map((insight, idx) => (
+                            <li key={idx} className="insight-item" style={{
+                              backgroundColor: '#f8f9fa',
+                              padding: '12px 16px',
+                              borderRadius: '6px',
+                              marginBottom: '8px',
+                              borderLeft: '3px solid #64748b',
+                              fontSize: '13px',
+                              color: '#475569',
+                              lineHeight: '1.6'
+                            }}>
+                              {insight}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Strategic Recommendations */}
+                    {msg?.strategicRecommendations && Array.isArray(msg.strategicRecommendations) && msg.strategicRecommendations.length > 0 && (
+                      <div>
+                        <h3 style={{ 
+                          fontSize: '16px', 
+                          fontWeight: '600', 
+                          color: '#2d3748', 
+                          marginBottom: '12px',
+                          marginTop: 0
+                        }}>
+                          Strategic Recommendations
+                        </h3>
+                        <ul style={{ 
+                          listStyle: 'none', 
+                          padding: 0, 
+                          margin: 0 
+                        }}>
+                          {msg.strategicRecommendations.map((recommendation, idx) => (
+                            <li key={idx} className="recommendation-item" style={{
+                              backgroundColor: '#f8f9fa',
+                              padding: '12px 16px',
+                              borderRadius: '6px',
+                              marginBottom: '8px',
+                              borderLeft: '3px solid #64748b',
+                              fontSize: '13px',
+                              color: '#475569',
+                              lineHeight: '1.6'
+                            }}>
+                              {recommendation}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Chart Insights */}
+                {msg?.chartInsights && Array.isArray(msg.chartInsights) && msg.chartInsights.length > 0 && (
+                  <div style={{ marginBottom: '24px', width: '100%' }}>
+                    <h3 style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#2d3748', 
+                      marginBottom: '12px',
+                      marginTop: 0
+                    }}>
+                      Chart Insights
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                      {msg.chartInsights.map((insight, idx) => (
+                        <div key={idx} className="chart-insight-card" style={{
+                          backgroundColor: '#fff',
+                          padding: '12px 16px',
+                          borderRadius: '6px',
+                          border: '1px solid #e2e8f0',
+                          width: '100%'
+                        }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            marginBottom: '6px'
+                          }}>
+                            <div style={{ 
+                              fontSize: '13px', 
+                              fontWeight: '600', 
+                              color: '#1e293b' 
+                            }}>
+                              {insight.kpi}
+                            </div>
+                            <div style={{
+                              color: insight.trend === 'increasing' ? '#10b981' : 
+                                     insight.trend === 'decreasing' ? '#ef4444' : '#64748b',
+                              fontSize: '11px',
+                              fontWeight: '500',
+                              textTransform: 'capitalize'
+                            }}>
+                              {insight.trend}
+                            </div>
+                          </div>
+                          <div style={{ 
+                            fontSize: '12px', 
+                            color: '#64748b', 
+                            lineHeight: '1.6' 
+                          }}>
+                            {insight.commentary}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Charts from charts array */}
+                {msg?.charts && Array.isArray(msg.charts) && msg.charts.length > 0 && (
+                  <div style={{ marginBottom: '24px', width: '100%' }}>
+                    <h3 style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#2d3748', 
+                      marginBottom: '16px',
+                      marginTop: 0
+                    }}>
+                      Visualizations
+                    </h3>
+                    {msg.charts.map((chart, idx) => {
+                      const plotlyData = safeParseMaybeJson(chart.plotly_chart);
+                      return plotlyData ? (
+                        <div key={idx} style={{ marginBottom: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', backgroundColor: '#ffffff', width: '100%' }}>
+                          <div style={{ 
+                            fontSize: '14px', 
+                            fontWeight: '600', 
+                            color: '#1e293b',
+                            marginBottom: '12px'
+                          }}>
+                            {chart.kpi}
+                          </div>
+                          <div style={{ width: '100%', height: '500px' }}>
+                            <Plot
+                              data={plotlyData.data}
+                              layout={{
+                                ...plotlyData.layout,
+                                autosize: true,
+                                margin: { l: 60, r: 40, t: 40, b: 60 }
+                              }}
+                              config={{ responsive: true, displayModeBar: false }}
+                              style={{
+                                width: "100%",
+                                height: "100%"
+                              }}
+                              useResizeHandler={true}
+                            />
+                          </div>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+
                 {msg?.tableOutput && (
-                  <div style={{ width: '100%', overflowX: 'auto' }}>
-                    <table className="modern-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, backgroundColor: '#fff' }}>
+                  <div style={{ width: '100%', overflowX: 'auto', marginBottom: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fff' }}>
+                    <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr>
                           {msg.tableOutput.columns?.map((col) => (
-                            <th key={col} style={{ backgroundColor: '#f8fafc', padding: '12px', textAlign: 'left', fontWeight: 600, color: '#1a237e', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{col}</th>
+                            <th key={col} style={{ backgroundColor: '#f8fafc', padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: '#1e293b', borderBottom: '2px solid #e2e8f0', fontSize: '13px' }}>{col}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {Array.isArray(msg.tableOutput.data) && msg.tableOutput.data.map((row, rowIdx) => (
-                          <tr key={rowIdx}>
+                          <tr key={rowIdx} style={{ borderBottom: rowIdx === msg.tableOutput.data.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                             {msg.tableOutput.columns?.map((col) => (
-                              <td key={col} style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', color: '#4a5568' }}>
+                              <td key={col} style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>
                                 {(row[col] === null || row[col] === undefined || (typeof row[col] === 'number' && Number.isNaN(row[col])) || row[col] === 'NaN') ? 'N/A' : String(row[col])}
                               </td>
                             ))}
@@ -408,74 +745,71 @@ const Bot2 = () => {
           )}
           
                 {msg?.plotsData && (
-                  <Plot
-                    data={msg?.plotsData?.data}
-                    layout={msg?.plotsData?.layout}
-                    config={{ responsive: true }}
-                    style={{
-                      width: "100%",
-                      height: "60vh",
-                      padding: "15px",
-                      backgroundColor: "#ffffff",
-                      borderRadius: "12px",
-                    }}
-                    className="plot-container"
-                  />
+                  <div style={{ marginBottom: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', backgroundColor: '#ffffff', width: '100%' }}>
+                    <div style={{ width: '100%', height: '500px' }}>
+                      <Plot
+                        data={msg?.plotsData?.data}
+                        layout={{
+                          ...msg?.plotsData?.layout,
+                          autosize: true,
+                          margin: { l: 60, r: 40, t: 40, b: 60 }
+                        }}
+                        config={{ responsive: true, displayModeBar: false }}
+                        style={{
+                          width: "100%",
+                          height: "100%"
+                        }}
+                        useResizeHandler={true}
+                        className="plot-container"
+                      />
+                    </div>
+                  </div>
                 )}
           
           {msg?.data && (
-            <div style={{ padding: '16px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>Forecast Data</h2>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  border: '1px solid #ccc',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                }}
-              >
-                <thead style={{ backgroundColor: '#f5f5f5' }}>
-                  <tr>
-                    <th style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color: '#444',
-                      fontWeight: '500',
-                      textTransform: 'capitalize',
-                      borderBottom: '1px solid #ccc',
-                    }}>Date</th>
-                    <th style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color: '#444',
-                      fontWeight: '500',
-                      textTransform: 'capitalize',
-                      borderBottom: '1px solid #ccc',
-                    }}>Forecasted Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.keys(msg.data.date).map((key) => (
-                    <tr
-                      key={key}
-                      style={{
-                        borderTop: '1px solid #e0e0e0',
-                        backgroundColor: key % 2 === 0 ? '#fff' : '#f9f9f9',
-                        cursor: 'pointer',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')}
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = key % 2 === 0 ? '#fff' : '#f9f9f9')
-                      }
-                    >
-                      <td style={{ padding: '12px' }}>{msg.data.date[key]}</td>
-                      <td style={{ padding: '12px' }}>{msg.data.forecasted_value[key]}</td>
+            <div style={{ marginBottom: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden', width: '100%' }}>
+              <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#2d3748' }}>Forecast Data</h3>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{
+                        padding: '12px 16px',
+                        textAlign: 'left',
+                        color: '#1e293b',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        backgroundColor: '#f8fafc',
+                        borderBottom: '2px solid #e2e8f0'
+                      }}>Date</th>
+                      <th style={{
+                        padding: '12px 16px',
+                        textAlign: 'left',
+                        color: '#1e293b',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        backgroundColor: '#f8fafc',
+                        borderBottom: '2px solid #e2e8f0'
+                      }}>Forecasted Value</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {Object.keys(msg.data.date).map((key, idx) => (
+                      <tr
+                        key={key}
+                        style={{
+                          borderBottom: idx === Object.keys(msg.data.date).length - 1 ? 'none' : '1px solid #f1f5f9'
+                        }}
+                      >
+                        <td style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>{msg.data.date[key]}</td>
+                        <td style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>{msg.data.forecasted_value[key]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
           

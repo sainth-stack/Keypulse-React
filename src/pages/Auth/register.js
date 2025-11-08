@@ -142,7 +142,7 @@ formData.append('organization',"7f0bd951-43c6-4f2f-9608-f34a8086dd0d")
         </div>
       </div>
       <div className="col-md-6 p-0 m-0 bg-biscuit text-center pt-4 pb-4 d-none d-lg-block">
-      <h5 className="text-green font-weight-bold mt-2" style={{fontWeight:700,fontSize:'28px'}}>WELCOME TO DATAPX1</h5>
+      <h5 className="text-green font-weight-bold mt-2" style={{fontWeight:700,fontSize:'28px'}}>WELCOME TO DATONIX</h5>
       {/* <h3 className="mt-3">Your Digital Growth Partner <br /> For Manufacturing</h3> */}
         <div className="d-flex justify-content-center">
           <div className="col-md-10">

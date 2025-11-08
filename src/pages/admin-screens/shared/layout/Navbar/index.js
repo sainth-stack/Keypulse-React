@@ -35,13 +35,13 @@ function Navbar() {
         <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingLeft:'40px'}} id="navbarNav">
           <img
             src={Logo}
-            style={{ width: '70px',height:'70px' }}
+            style={{ width: '200px',height:'70px' }}
             id="logo_RL"
           />
         </div>
 
         <div className="position-absolute w-100 d-flex justify-content-center" style={{ pointerEvents: 'none' }}>
-          <h2 style={{fontSize:'30px',fontWeight:'bold'}} className="m-0">DataPX1</h2>
+          <h2 style={{fontSize:'30px',fontWeight:'bold'}} className="m-0">Datonix</h2>
         </div>
 
         <div class="nav-item ms-1 dropdown d-flex align-items-center mr-0 pr-0" style={{ color: 'black' }}>
