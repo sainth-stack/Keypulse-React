@@ -10,6 +10,9 @@ import {
   Popconfirm,
   ConfigProvider,
   Select,
+  Row,
+  Col,
+  Spin,
 } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { EyeInvisibleOutlined, EyeTwoTone, ReloadOutlined } from '@ant-design/icons';
@@ -31,6 +34,21 @@ const UsersManager = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
+  // Filters (like sessions)
+  const [filterParams, setFilterParams] = useState({
+    userId: undefined,
+    orgId: undefined,
+  });
+  // Users dropdown (infinite scroll)
+  const [usersSelect, setUsersSelect] = useState([]);
+  const [usersSelectLoading, setUsersSelectLoading] = useState(false);
+  const [usersSelectHasMore, setUsersSelectHasMore] = useState(true);
+  const [usersSelectPage, setUsersSelectPage] = useState(1);
+  // Orgs dropdown (infinite scroll)
+  const [orgsSelect, setOrgsSelect] = useState([]);
+  const [orgsSelectLoading, setOrgsSelectLoading] = useState(false);
+  const [orgsSelectHasMore, setOrgsSelectHasMore] = useState(true);
+  const [orgsSelectPage, setOrgsSelectPage] = useState(1);
 
   // Ref to track if initial load is done
   const initialLoadRef = useRef(false);
@@ -57,13 +75,24 @@ const UsersManager = () => {
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentIsSuper = isSuperAdmin();
 
-      const response = await axios.get(`${API_URL}/users`, {
-        params: {
-          organization_id: !currentIsSuper ? currentUser?.organization?.organization_id : '',
-          page,
-          page_size: size,
-        }
-      });
+      // If a specific user is selected, try server-side filter first
+      const params = {
+        page,
+        page_size: size,
+      };
+      if (!currentIsSuper) {
+        params.organization_id = currentUser?.organization?.organization_id;
+      } else if (filterParams.orgId) {
+        params.organization_id = filterParams.orgId;
+      } else {
+        params.organization_id = '';
+      }
+      if (filterParams.userId) {
+        // backend may or may not support this; harmless if ignored
+        params.user_id = filterParams.userId;
+      }
+
+      const response = await axios.get(`${API_URL}/users`, { params });
 
       // Always use response.data.users and response.data.pagination
       const usersData = response?.data?.users || [];
@@ -73,6 +102,32 @@ const UsersManager = () => {
         key: user.id,
         sno: (pagination.page - 1) * pagination.page_size + index + 1,
       }));
+      // Fallback to local single-user display if userId selected and server didn't filter
+      if (filterParams.userId) {
+        const matchFromServer = processedUsers.find(u => u.id === filterParams.userId);
+        if (matchFromServer) {
+          setUsers([matchFromServer]);
+          setTotal(1);
+          setCurrentPage(1);
+          setPageSize(10);
+          return;
+        }
+        // Try to find in usersSelect cache
+        const cached = usersSelect.find(u => u.id === filterParams.userId);
+        if (cached) {
+          const decorated = {
+            ...cached,
+            key: cached.id,
+            sno: 1,
+          };
+          setUsers([decorated]);
+          setTotal(1);
+          setCurrentPage(1);
+          setPageSize(10);
+          return;
+        }
+        // Else just show server data as-is
+      }
       setUsers(processedUsers);
       setTotal(pagination.total_records || processedUsers.length);
       setCurrentPage(pagination.page || page);
@@ -80,7 +135,7 @@ const UsersManager = () => {
     } catch (error) {
       message.error('Failed to refresh users data');
     }
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, filterParams, usersSelect]);
 
   // Fetch organizations and roles data for modal
   const fetchModalData = useCallback(async () => {
@@ -129,6 +184,69 @@ const UsersManager = () => {
     }
   }, []);
 
+  // Fetch users for the user Select (infinite scroll)
+  const fetchUsersForSelect = useCallback(async (page = 1, reset = false) => {
+    if (usersSelectLoading) return;
+    setUsersSelectLoading(true);
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentIsSuper = isSuperAdmin();
+      const params = {
+        page,
+        limit: 50,
+      };
+      if (!currentIsSuper) {
+        params.organization_id = currentUser?.organization?.organization_id;
+      } else if (filterParams.orgId) {
+        params.organization_id = filterParams.orgId;
+      }
+      const response = await axios.get(`${API_URL}/users`, { params });
+      const usersArray = response?.data?.users || [];
+      const newUsers = usersArray.map((u) => ({
+        ...u,
+        name: u.username,
+        email: u.email,
+      }));
+      if (reset) {
+        setUsersSelect(newUsers);
+      } else {
+        setUsersSelect(prev => [...prev, ...newUsers]);
+      }
+      const pagination = response?.data?.pagination;
+      const hasMore = pagination ? (pagination.page < pagination.total_pages) : (newUsers.length === 50);
+      setUsersSelectHasMore(hasMore);
+      setUsersSelectPage(page);
+    } catch {
+      message.error('Failed to load users list');
+    } finally {
+      setUsersSelectLoading(false);
+    }
+  }, [usersSelectLoading, filterParams]);
+
+  // Fetch organizations for the org Select (infinite scroll)
+  const fetchOrgsForSelect = useCallback(async (page = 1, reset = false) => {
+    if (!isSuperAdmin() || orgsSelectLoading) return;
+    setOrgsSelectLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/organizations`, {
+        params: { page, limit: 50 }
+      });
+      const newOrgs = response?.data?.organizations?.map(org => ({ ...org })) || [];
+      if (reset) {
+        setOrgsSelect(newOrgs);
+      } else {
+        setOrgsSelect(prev => [...prev, ...newOrgs]);
+      }
+      const hasMore = newOrgs.length === 50;
+      setOrgsSelectHasMore(hasMore);
+      setOrgsSelectPage(page);
+    } catch {
+      message.error('Failed to load organizations');
+    } finally {
+      setOrgsSelectLoading(false);
+    }
+  }, [orgsSelectLoading]);
+
   // Initial data load effect - runs only once, only fetches users
   useEffect(() => {
     if (!initialLoadRef.current) {
@@ -150,6 +268,22 @@ const UsersManager = () => {
       loadData();
     }
   }, [fetchUsers, pageSize]); // Empty dependency array - this effect runs only once
+
+  // Initial load for selects
+  useEffect(() => {
+    // Run once on mount; avoid depending on callbacks that change during loading
+    fetchUsersForSelect(1, true);
+    fetchOrgsForSelect(1, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refetch table when filters change (org/user)
+  useEffect(() => {
+    // Reset to first page
+    setCurrentPage(1);
+    fetchUsers(1, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterParams.orgId, filterParams.userId]);
 
   // Handle form submission
   const handleSubmit = async (values) => {
@@ -212,6 +346,51 @@ const UsersManager = () => {
     }
     return pass;
   }
+
+  // Filters handlers
+  const handleFilterChange = (name, value) => {
+    const normalizedValue = value || undefined;
+    if (name === 'orgId') {
+      // Single state update to avoid double-triggering effects
+      setFilterParams(prev => ({
+        ...prev,
+        orgId: normalizedValue,
+        userId: undefined,
+      }));
+      setUsersSelect([]);
+      setUsersSelectPage(1);
+      setUsersSelectHasMore(true);
+      fetchUsersForSelect(1, true);
+      return;
+    }
+    setFilterParams(prev => ({
+      ...prev,
+      [name]: normalizedValue,
+    }));
+  };
+
+  const handleUsersSelectScroll = (e) => {
+    const { target } = e;
+    if (target.scrollTop + target.offsetHeight === target.scrollHeight && usersSelectHasMore && !usersSelectLoading) {
+      fetchUsersForSelect(usersSelectPage + 1, false);
+    }
+  };
+
+  const handleOrgsSelectScroll = (e) => {
+    const { target } = e;
+    if (target.scrollTop + target.offsetHeight === target.scrollHeight && orgsSelectHasMore && !orgsSelectLoading) {
+      fetchOrgsForSelect(orgsSelectPage + 1, false);
+    }
+  };
+
+  const resetFilters = () => {
+    setFilterParams({ userId: undefined, orgId: undefined });
+    setCurrentPage(1);
+    fetchUsers(1, pageSize);
+    // Reload dropdowns to default scope
+    fetchUsersForSelect(1, true);
+    fetchOrgsForSelect(1, true);
+  };
 
   // Memoized table columns
   const columns = useMemo(() => [
@@ -342,6 +521,79 @@ const UsersManager = () => {
       }}
     >
       <div style={{ padding: '24px' }}>
+        <div style={{ marginBottom: '16px', padding: '16px', background: '#fafafa', borderRadius: '8px' }}>
+          <Row gutter={16}>
+            <Col span={isSuperAdmin() ? 8 : 12}>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Select User"
+                allowClear
+                showSearch
+                value={filterParams.userId || null}
+                onChange={(value) => handleFilterChange('userId', value)}
+                onPopupScroll={handleUsersSelectScroll}
+                loading={usersSelectLoading}
+                filterOption={(input, option) => {
+                  const label = (option?.label ?? option?.children ?? '');
+                  return String(label).toLowerCase().includes(input.toLowerCase());
+                }}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    {usersSelectLoading && (
+                      <div style={{ textAlign: 'center', padding: '8px' }}>
+                        <Spin size="small" />
+                      </div>
+                    )}
+                  </>
+                )}
+              >
+                {usersSelect.map(u => (
+                  <Select.Option key={u.id} value={u.id}>
+                    {u.username} ({u.email})
+                  </Select.Option>
+                ))}
+              </Select>
+            </Col>
+            {isSuperAdmin() && (
+              <Col span={8}>
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder="Select Organization"
+                  allowClear
+                  showSearch
+                  value={filterParams.orgId || null}
+                  onChange={(value) => handleFilterChange('orgId', value)}
+                  onPopupScroll={handleOrgsSelectScroll}
+                  loading={orgsSelectLoading}
+                  filterOption={(input, option) => {
+                    const label = (option?.label ?? option?.children ?? '');
+                    return String(label).toLowerCase().includes(input.toLowerCase());
+                  }}
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      {orgsSelectLoading && (
+                        <div style={{ textAlign: 'center', padding: '8px' }}>
+                          <Spin size="small" />
+                        </div>
+                      )}
+                    </>
+                  )}
+                >
+                  {orgsSelect.map(org => (
+                    <Select.Option key={org.id} value={org.id}>{org.name}</Select.Option>
+                  ))}
+                </Select>
+              </Col>
+            )}
+            <Col span={isSuperAdmin() ? 6 : 10}>
+              <Button onClick={resetFilters} style={{ width: '100%' }}>
+                Reset
+              </Button>
+            </Col>
+          </Row>
+        </div>
         {canCreate && (
           <Button
             type="primary"
