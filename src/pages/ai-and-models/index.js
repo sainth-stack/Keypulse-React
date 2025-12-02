@@ -177,6 +177,28 @@ const[predictLoader,setPredictLoader] = useState(false)
             fieldName.toLowerCase().includes(keyword.toLowerCase())
         );
     };
+    
+    // Normalize various datetime strings to input[type="datetime-local"] compatible value (YYYY-MM-DDTHH:MM)
+    const toDateTimeLocal = (value) => {
+        if (!value) return value;
+        try {
+            // Replace space between date and time with 'T' if present
+            const normalized = typeof value === 'string' ? value.replace(' ', 'T') : value;
+            const dt = new Date(normalized);
+            if (isNaN(dt.getTime())) {
+                return value;
+            }
+            const pad = (n) => String(n).padStart(2, '0');
+            const year = dt.getFullYear();
+            const month = pad(dt.getMonth() + 1);
+            const day = pad(dt.getDate());
+            const hours = pad(dt.getHours());
+            const minutes = pad(dt.getMinutes());
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        } catch {
+            return value;
+        }
+    };
 
     const models = [
         { id: 'Classification', label: 'Classification', description: 'Discover hidden patterns and segment data using clustering' },
@@ -269,6 +291,29 @@ const[predictLoader,setPredictLoader] = useState(false)
                 input: formData,
                 output: data
               });
+            }
+            // Prepopulate RandomForest (Prediction) inputs with suggested row_data from API
+            if (formData.model === 'Prediction' && data && data.row_data) {
+                setRfInputs((prev) => {
+                    // Avoid overriding if user already started typing
+                    if (prev && Object.keys(prev).length > 0) return prev;
+                    const cols = Array.isArray(data.rf_cols) ? data.rf_cols : Object.keys(data.row_data);
+                    const initial = {};
+                    cols.forEach((col) => {
+                        let val = data.row_data[col];
+                        if (val === null || val === undefined) {
+                            initial[col] = '';
+                            return;
+                        }
+                        // Ensure strings in inputs; format datetime fields for datetime-local inputs
+                        if (isDateField(col)) {
+                            initial[col] = toDateTimeLocal(val);
+                        } else {
+                            initial[col] = typeof val === 'string' ? val : String(val);
+                        }
+                    });
+                    return initial;
+                });
             }
         } catch (error) {
             console.error('Error:', error);
@@ -381,7 +426,8 @@ const[predictLoader,setPredictLoader] = useState(false)
                                     const data = await response.json();
                                     setResponse(prev => ({
                                         ...prev,
-                                        rf_result: data.rf_result
+                                        rf_result: data.rf_result,
+                                        insights: data.insights
                                     }));
                                 } catch (error) {
                                     setPredictLoader(false)
@@ -414,16 +460,58 @@ const[predictLoader,setPredictLoader] = useState(false)
                                 </div>
                             </form>
                             <div className="rf-result">
-                                {response.rf_result && (
+                                {(response.rf_result || response.insights) && (
                                     <div className="prediction-result">
-                                        <h3>{`${formData.col ? formData.col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' ' : ''}Prediction Result:`}</h3>
-                                        <p className="result-value">{response.rf_result}</p>
-                                        <div className="business-interpretation">
-                                            <h4>Business Interpretation:</h4>
-                                            <p>
-                                                Based on the input data, this record belongs to the "{response.rf_result}" category. This prediction can help you understand customer segments, risk categories, or performance tiers.
-                                            </p>
-                                        </div>
+                                        {response.rf_result && (
+                                            <>
+                                                <h3>{`${formData.col ? formData.col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' ' : ''}Prediction Result:`}</h3>
+                                                <p className="result-value">{response.rf_result}</p>
+                                            </>
+                                        )}
+                                        {response.insights && (
+                                            <div className="insights-sections">
+                                                {Array.isArray(response.insights.input_analysis) && response.insights.input_analysis.length > 0 && (
+                                                    <div className="insight-section">
+                                                        <h4>Input Analysis</h4>
+                                                        <ul>
+                                                            {response.insights.input_analysis.map((item, idx) => (
+                                                                <li key={`input_analysis_${idx}`}>{item}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {Array.isArray(response.insights.prediction_interpretation) && response.insights.prediction_interpretation.length > 0 && (
+                                                    <div className="insight-section">
+                                                        <h4>Prediction Interpretation</h4>
+                                                        <ul>
+                                                            {response.insights.prediction_interpretation.map((item, idx) => (
+                                                                <li key={`prediction_interpretation_${idx}`}>{item}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {Array.isArray(response.insights.business_insights) && response.insights.business_insights.length > 0 && (
+                                                    <div className="insight-section">
+                                                        <h4>Business Insights</h4>
+                                                        <ul>
+                                                            {response.insights.business_insights.map((item, idx) => (
+                                                                <li key={`business_insights_${idx}`}>{item}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {Array.isArray(response.insights.recommended_actions) && response.insights.recommended_actions.length > 0 && (
+                                                    <div className="insight-section">
+                                                        <h4>Recommended Actions</h4>
+                                                        <ul>
+                                                            {response.insights.recommended_actions.map((item, idx) => (
+                                                                <li key={`recommended_actions_${idx}`}>{item}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

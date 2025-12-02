@@ -22,9 +22,9 @@ import {
 import {
   Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
-  TrendingUp as TrendingUpIcon
+    TrendingUp as TrendingUpIcon,
+    DeleteOutline as DeleteOutlineIcon
 } from "@mui/icons-material";
-import { LoadingIndicator } from "../../components/loader";
 import './index.css';
 import { logAmplitudeEvent } from '../../utils';
 
@@ -32,7 +32,6 @@ const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [lastRefresh, setLastRefresh] = useState(null);
   const [fileName, setFileName] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileKeys, setFileKeys] = useState([]);
@@ -55,11 +54,61 @@ const Dashboard = () => {
   // Cache keys
   const CACHE_KEY = 'dashboard_data';
   const CACHE_EXPIRY_KEY = 'dashboard_data_expiry';
+  const SAVED_CHARTS_KEY = 'dashboard_saved_charts';
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   // Unified API call management
   const activeRequestRef = useRef(null);
   const progressIntervalRef = useRef(null);
+
+  // View and saved charts
+  const [viewTab, setViewTab] = useState('charts');
+  const [savedCharts, setSavedCharts] = useState([]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_CHARTS_KEY) || '[]');
+      if (Array.isArray(saved)) setSavedCharts(saved);
+    } catch (e) {
+      console.error('Error loading saved charts:', e);
+      setSavedCharts([]);
+    }
+  }, []);
+
+  const persistSavedCharts = (charts) => {
+    try {
+      localStorage.setItem(SAVED_CHARTS_KEY, JSON.stringify(charts));
+    } catch (e) {
+      console.error('Error saving charts to localStorage:', e);
+    }
+  };
+
+  const isChartSaved = (chartId) => {
+    return savedCharts.some((c) => c.id === chartId);
+  };
+
+  const handleSaveChart = ({ id, title, description, graphData, fileKey }) => {
+    if (isChartSaved(id)) return;
+    const next = [
+      ...savedCharts,
+      {
+        id,
+        title,
+        description,
+        graphData,
+        fileKey,
+        savedAt: Date.now(),
+      },
+    ];
+    setSavedCharts(next);
+    persistSavedCharts(next);
+  };
+
+  const handleRemoveSaved = (id) => {
+    const next = savedCharts.filter((c) => c.id !== id);
+    setSavedCharts(next);
+    persistSavedCharts(next);
+  };
 
   // On mount, clear cache and fetch data ONCE
   useEffect(() => {
@@ -249,7 +298,6 @@ const Dashboard = () => {
           setData(fileData);
           setFileKeys(fileKeys);
           setSelectedFile(fileKeys[0] || null);
-          setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
             return;
         }
       }
@@ -271,7 +319,6 @@ const Dashboard = () => {
         setCachedData(result);
       }
       
-      setLastRefresh(new Date());
       setError(null);
       
       // Show completion for 2 seconds before hiding loading
@@ -310,7 +357,6 @@ const Dashboard = () => {
           setData(fileData);
           setFileKeys(fileKeys);
           setSelectedFile(fileKeys[0] || null);
-          setLastRefresh(new Date(parseInt(localStorage.getItem(CACHE_EXPIRY_KEY)) - CACHE_DURATION));
         }
       }
     } finally {
@@ -427,11 +473,70 @@ const Dashboard = () => {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {lastRefresh && (
-              <div className="status-indicator status-success">
-                Last updated: {lastRefresh.toLocaleTimeString()}
-              </div>
-            )}
+            <Box
+              sx={{
+                backgroundColor: 'rgba(255,255,255,0.14)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.25)',
+                padding: '4px',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
+                backdropFilter: 'saturate(160%) blur(6px)'
+              }}
+            >
+              <Tabs
+                value={viewTab}
+                onChange={(e, newValue) => setViewTab(newValue)}
+                aria-label="Charts and Saved Tabs"
+                textColor="inherit"
+                TabIndicatorProps={{ style: { display: 'none' } }}
+                sx={{
+                  minHeight: 36,
+                  '& .MuiTabs-flexContainer': {
+                    gap: 0
+                  },
+                  '& .MuiTab-root': {
+                    textTransform: 'none',
+                    color: 'rgba(255,255,255,0.7)',
+                    fontWeight: 700,
+                    px: 3,
+                    py: 0.75,
+                    minHeight: 36,
+                    minWidth: 100,
+                    borderRadius: '10px',
+                  },
+                  '& .MuiTab-root.Mui-selected': {
+                    color: '#667eea',
+                    backgroundColor: '#ffffff',
+                    boxShadow: 'none',
+                  },
+                  '& .MuiTab-root:not(:last-of-type)': {
+                    position: 'relative',
+                  },
+                  '& .MuiTab-root:not(:last-of-type)::after': {
+                    content: '""',
+                    position: 'absolute',
+                    right: -2,
+                    top: 8,
+                    bottom: 8,
+                    width: '1px',
+                    background: 'rgba(255,255,255,0.25)',
+                  },
+                }}
+              >
+                <Tab
+                  label="Charts"
+                  value="charts"
+                  disableRipple
+                  sx={{ color: 'white', fontWeight: 700, textTransform: 'none' }}
+                />
+                <Tab
+                  label="Saved"
+                  value="saved"
+                  disableRipple
+                  sx={{ color: 'white', fontWeight: 700, textTransform: 'none' }}
+                />
+              </Tabs>
+            </Box>
             {/* Generate Advanced Button */}
             <Button
               variant="contained"
@@ -838,7 +943,7 @@ const Dashboard = () => {
       )}
 
       {/* Charts Grid */}
-      {!loading && !advancedLoading && parsedData.length > 0 && (
+      {viewTab === 'charts' && !loading && !advancedLoading && parsedData.length > 0 && (
         <div
           className="dashboard-grid"
           style={{
@@ -861,7 +966,7 @@ const Dashboard = () => {
                 }}
               >
                 {/* Chart Header */}
-                <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
                   {getIconForChart(title)}
                   <div style={{ flex: 1 }}>
                     <Typography
@@ -882,6 +987,26 @@ const Dashboard = () => {
                       </Typography>
                     )}
                   </div>
+                    <div style={{ marginLeft: 12 }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        color={isChartSaved(`${selectedFile || 'default'}::${title}`) ? 'success' : 'primary'}
+                        onClick={() =>
+                          handleSaveChart({
+                            id: `${selectedFile || 'default'}::${title}`,
+                            title,
+                            description,
+                            graphData,
+                            fileKey: selectedFile || 'default',
+                          })
+                        }
+                        disabled={isChartSaved(`${selectedFile || 'default'}::${title}`)}
+                        sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
+                      >
+                        {isChartSaved(`${selectedFile || 'default'}::${title}`) ? 'Saved' : 'Save'}
+                      </Button>
+                    </div>
                 </div>
                 {/* Chart Content */}
                 <div
@@ -933,8 +1058,118 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Saved Charts Grid */}
+      {viewTab === 'saved' && !loading && !advancedLoading && savedCharts.length > 0 && (
+        <div
+          className="dashboard-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
+            gap: "24px",
+            padding: "0 16px",
+          }}
+        >
+          {savedCharts.map(({ id, title, description, graphData }) => (
+            <div key={id} className="chart-container fade-in-up">
+              <div
+                className="dashboard-card"
+                style={{
+                  borderRadius: "12px",
+                  padding: "24px",
+                  minHeight: "500px",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {/* Saved Chart Header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                  {getIconForChart(title)}
+                  <div style={{ flex: 1 }}>
+                    <Typography
+                      variant="h6"
+                      component="h2"
+                      style={{
+                        fontWeight: 600,
+                        color: "#333",
+                        fontSize: "1.1rem",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {title}
+                    </Typography>
+                    {description && (
+                      <Typography variant="body2" style={{ color: "#666", fontSize: "0.875rem" }}>
+                        {description}
+                      </Typography>
+                    )}
+                  </div>
+                  <IconButton
+                    aria-label="Remove saved"
+                    onClick={() => handleRemoveSaved(id)}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#fee2e2',
+                      color: '#b91c1c',
+                      '&:hover': { backgroundColor: '#fecaca' },
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <DeleteOutlineIcon />
+                  </IconButton>
+                </div>
+
+                {/* Saved Chart Content */}
+                <div
+                  className="plotly-chart"
+                  style={{
+                    flex: 1,
+                    minHeight: "400px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Plot
+                    data={graphData?.data || []}
+                    layout={{
+                      ...graphData?.layout,
+                      title: "",
+                      autosize: true,
+                      paper_bgcolor: "rgba(0,0,0,0)",
+                      plot_bgcolor: "rgba(0,0,0,0)",
+                      font: {
+                        family: '"Roboto", "Helvetica", "Arial", sans-serif',
+                        size: 11,
+                        color: "#333",
+                      },
+                      margin: { t: 10, r: 10, b: 50, l: 50 },
+                      showlegend: graphData?.layout?.showlegend || false,
+                      hovermode: "closest",
+                    }}
+                    config={{
+                      responsive: true,
+                      displayModeBar: false,
+                      staticPlot: false,
+                      scrollZoom: false,
+                      doubleClick: false,
+                      showTips: false,
+                      displaylogo: false,
+                    }}
+                    style={{
+                      width: "100%",
+                      height: "400px",
+                    }}
+                    useResizeHandler={true}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Empty State */}
-      {!loading && !advancedLoading && parsedData.length === 0 && (
+      {viewTab === 'charts' && !loading && !advancedLoading && parsedData.length === 0 && (
         <div
           className="dashboard-card"
           style={{
@@ -950,6 +1185,25 @@ const Dashboard = () => {
           </Typography>
           <Typography variant="body2" style={{ color: "#999" }}>
             Click the refresh button to load data
+          </Typography>
+        </div>
+      )}
+      {viewTab === 'saved' && !loading && !advancedLoading && savedCharts.length === 0 && (
+        <div
+          className="dashboard-card"
+          style={{
+            padding: "64px",
+            textAlign: "center",
+            margin: "0 16px",
+            borderRadius: "12px",
+          }}
+        >
+          <VisibilityIcon style={{ fontSize: "64px", color: "#999", marginBottom: "16px" }} />
+          <Typography variant="h6" style={{ color: "#666", marginBottom: "8px" }}>
+            No saved charts yet
+          </Typography>
+          <Typography variant="body2" style={{ color: "#999" }}>
+            Switch to Charts tab and click Save on any graph
           </Typography>
         </div>
       )}
