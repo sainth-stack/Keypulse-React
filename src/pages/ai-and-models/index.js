@@ -392,13 +392,8 @@ const[predictLoader,setPredictLoader] = useState(false)
                 return (
                     <div className="rf-container">
                         <h2 className="response-title" ref={predictionAnalysisRef}>Prediction Analysis</h2>
-                        <div className="business-inference">
-                            <h3>Business Insights:</h3>
-                            <p>
-                                This model can categorize your {formData.col} data into distinct groups, helping you understand different segments in your business data.
-                            </p>
-                        </div>
-                        <p className="status-text">Model Status: {response.status ? 'Successfully Trained' : 'Training Failed'}</p>
+                        <p className="status-text">Model Status: {response.status ? '✓ Successfully Trained' : '✗ Training Failed'}</p>
+                        
                         <div className="rf-content">
                             <form className="rf-input-form" onSubmit={async (e) => {
                                 e.preventDefault();
@@ -460,52 +455,150 @@ const[predictLoader,setPredictLoader] = useState(false)
                                 </div>
                             </form>
                             <div className="rf-result">
+                                {/* Output Levels visualization (professional segmented meter) */}
+                                {(() => {
+                                    const insights = response?.insights;
+                                    const ranges = insights?.output_level_ranges;
+                                    if (!ranges || typeof ranges !== 'object') return null;
+                                    
+                                    // Order levels for consistent UX
+                                    const preferredOrder = ['Low', 'Medium', 'High', 'Critical'];
+                                    const entries = Object.entries(ranges).map(([name, r]) => ({
+                                        name,
+                                        min: Number(r?.min),
+                                        max: Number(r?.max)
+                                    })).filter(r => !Number.isNaN(r.min) && !Number.isNaN(r.max) && r.max >= r.min);
+                                    
+                                    if (entries.length === 0) return null;
+                                    
+                                    const ordered = entries.sort((a, b) => {
+                                        const ai = preferredOrder.indexOf(a.name);
+                                        const bi = preferredOrder.indexOf(b.name);
+                                        if (ai !== -1 && bi !== -1 && ai !== bi) return ai - bi;
+                                        if (a.min !== b.min) return a.min - b.min;
+                                        return a.max - b.max;
+                                    });
+                                    
+                                    const overallMin = Math.min(...ordered.map(o => o.min));
+                                    const overallMax = Math.max(...ordered.map(o => o.max));
+                                    const span = Math.max(1, overallMax - overallMin);
+                                    
+                                    const predictedLevel = insights?.predicted_output_level;
+                                    const numericValueRaw = response?.rf_result;
+                                    const numericValue = typeof numericValueRaw === 'number'
+                                        ? numericValueRaw
+                                        : parseFloat(String(numericValueRaw ?? '').replace(/[^0-9.+-eE]/g, ''));
+                                    const hasNumeric = Number.isFinite(numericValue);
+                                    const pct = hasNumeric ? Math.min(100, Math.max(0, ((numericValue - overallMin) / span) * 100)) : null;
+                                    
+                                    return (
+                                        <div className="levels-card">
+                                            <div className="levels-header">
+                                                <h3 className="levels-title">Output Levels</h3>
+                                                <div className="level-info-group">
+                                                    {typeof numericValueRaw !== 'undefined' && numericValueRaw !== null && (
+                                                        <span className="level-value">Value: Predicted {formData.col ? formData.col.replace(/_/g, ' ') : 'value'} is {numericValueRaw}</span>
+                                                    )}
+                                                    {predictedLevel && (
+                                                        <span className={`level-chip ${String(predictedLevel).toLowerCase()}`}>
+                                                            <strong>Predicted:</strong> {predictedLevel}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Simple Range Table */}
+                                            <div className="range-table-container">
+                                                <table className="range-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Level</th>
+                                                            <th>Range</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {ordered.map((seg, idx) => {
+                                                            const active = String(predictedLevel).toLowerCase() === String(seg.name).toLowerCase();
+                                                            return (
+                                                                <tr key={`${seg.name}-${idx}`} className={active ? 'active-row' : ''}>
+                                                                    <td className={`level-name ${String(seg.name).toLowerCase()}`}>
+                                                                        <strong>{seg.name.toUpperCase()}</strong>
+                                                                    </td>
+                                                                    <td className="level-range">{seg.min} – {seg.max}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 {(response.rf_result || response.insights) && (
-                                    <div className="prediction-result">
+                                    <div className="prediction-result-wrapper">
+                                        {/* Main Prediction Result */}
                                         {response.rf_result && (
-                                            <>
-                                                <h3>{`${formData.col ? formData.col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' ' : ''}Prediction Result:`}</h3>
-                                                <p className="result-value">{response.rf_result}</p>
-                                            </>
+                                            <div className="prediction-result-card">
+                                                <div className="result-header">
+                                                    <div>
+                                                        <h3 className="result-title">Prediction Result</h3>
+                                                        <p className="result-subtitle">{formData.col ? formData.col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Target Value'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="result-value-display">{response.rf_result}</div>
+                                            </div>
                                         )}
+
+                                        {/* Insights Grid */}
                                         {response.insights && (
-                                            <div className="insights-sections">
+                                            <div className="insights-grid">
                                                 {Array.isArray(response.insights.input_analysis) && response.insights.input_analysis.length > 0 && (
-                                                    <div className="insight-section">
-                                                        <h4>Input Analysis</h4>
-                                                        <ul>
+                                                    <div className="insight-card">
+                                                        <div className="insight-header">
+                                                            <h4>Input Analysis</h4>
+                                                        </div>
+                                                        <ul className="insight-list">
                                                             {response.insights.input_analysis.map((item, idx) => (
-                                                                <li key={`input_analysis_${idx}`}>{item}</li>
+                                                                <li key={`input_${idx}`}>{item}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
                                                 )}
+                                                
                                                 {Array.isArray(response.insights.prediction_interpretation) && response.insights.prediction_interpretation.length > 0 && (
-                                                    <div className="insight-section">
-                                                        <h4>Prediction Interpretation</h4>
-                                                        <ul>
+                                                    <div className="insight-card">
+                                                        <div className="insight-header">
+                                                            <h4>Prediction Interpretation</h4>
+                                                        </div>
+                                                        <ul className="insight-list">
                                                             {response.insights.prediction_interpretation.map((item, idx) => (
-                                                                <li key={`prediction_interpretation_${idx}`}>{item}</li>
+                                                                <li key={`interpretation_${idx}`}>{item}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
                                                 )}
+                                                
                                                 {Array.isArray(response.insights.business_insights) && response.insights.business_insights.length > 0 && (
-                                                    <div className="insight-section">
-                                                        <h4>Business Insights</h4>
-                                                        <ul>
+                                                    <div className="insight-card">
+                                                        <div className="insight-header">
+                                                            <h4>Business Insights</h4>
+                                                        </div>
+                                                        <ul className="insight-list">
                                                             {response.insights.business_insights.map((item, idx) => (
-                                                                <li key={`business_insights_${idx}`}>{item}</li>
+                                                                <li key={`business_${idx}`}>{item}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
                                                 )}
+                                                
                                                 {Array.isArray(response.insights.recommended_actions) && response.insights.recommended_actions.length > 0 && (
-                                                    <div className="insight-section">
-                                                        <h4>Recommended Actions</h4>
-                                                        <ul>
+                                                    <div className="insight-card insight-card-highlight">
+                                                        <div className="insight-header">
+                                                            <h4>Recommended Actions</h4>
+                                                        </div>
+                                                        <ul className="insight-list">
                                                             {response.insights.recommended_actions.map((item, idx) => (
-                                                                <li key={`recommended_actions_${idx}`}>{item}</li>
+                                                                <li key={`action_${idx}`}>{item}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
