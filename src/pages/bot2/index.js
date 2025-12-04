@@ -116,12 +116,13 @@ const Bot2 = () => {
         localStorage.setItem('describeDataCacheFileName', fileName);
       }
       const tableOutput = normalizeTableOutput(data?.text_output);
-      const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : (data?.text_pre_code_response || data?.message)));
+      const parsedChartResponse = safeParseMaybeJson(data?.chart_response);
+      const content = tableOutput ? "" : (parsedChartResponse ? "" : (typeof data?.text_output === 'string' ? data?.text_output : (data?.text_pre_code_response || data?.message)));
       setMessages(prev => [...prev, {
         type: 'bot',
         content,
         tableOutput,
-        plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
+        plotsData: parsedChartResponse || safeParseMaybeJson(data?.plot),
         code: data?.code || "Not Found",
         data: safeParseMaybeJson(data?.data) || ""
       }]);
@@ -152,12 +153,13 @@ const Bot2 = () => {
       try {
         const data = JSON.parse(cached);
         const tableOutput = normalizeTableOutput(data?.text_output);
-        const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
+        const parsedChartResponse = safeParseMaybeJson(data?.chart_response);
+        const content = tableOutput ? "" : (parsedChartResponse ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
         setMessages(prev => [...prev, {
           type: 'bot',
           content,
           tableOutput,
-          plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
+          plotsData: parsedChartResponse || safeParseMaybeJson(data?.plot),
           code: data?.code || "Not Found",
           data: safeParseMaybeJson(data?.data) || ""
         }]);
@@ -264,14 +266,15 @@ const Bot2 = () => {
     
       const data = await parseResponseJsonTolerant(response);
       const tableOutput = normalizeTableOutput(data?.text_output);
-      const content = tableOutput ? "" : (data?.chart_response ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
+      const parsedChartResponse = safeParseMaybeJson(data?.chart_response);
+      const content = tableOutput ? "" : (parsedChartResponse ? "" : (typeof data?.text_output === 'string' ? data?.text_output : data?.text_pre_code_response));
       setMessages(prev => prev.map(msg => 
         msg.isLoading ? { ...msg, isLoading: false } : msg
       ).concat([{ 
         type: 'bot', 
         content,
         tableOutput,
-        plotsData: data?.chart_response || safeParseMaybeJson(data?.plot),
+        plotsData: parsedChartResponse || safeParseMaybeJson(data?.plot),
         code:data?.code || "Not Found",
         data: safeParseMaybeJson(data?.data) || ""
       }]));

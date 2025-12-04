@@ -108,12 +108,13 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                     const tableOutput = normalizeTableOutput(responseData.text_output);
                     console.log('Normalized table output:', tableOutput);
                     
-                    const graphObj = responseData.chart_response || safeParseMaybeJson(responseData.plot);
+                    const parsedChartResponse = safeParseMaybeJson(responseData.chart_response);
+                    const graphObj = parsedChartResponse || safeParseMaybeJson(responseData.plot);
                     
                     const tableHtml = (responseData.text_output && typeof responseData.text_output === 'object' && typeof responseData.text_output?.html === 'string') ? responseData.text_output?.html : null;
                     console.log('Table HTML:', tableHtml);
                     
-                    const content = tableOutput ? "" : ((responseData.chart_response || responseData.plot) ? "" : (typeof responseData.text_output === 'string' ? responseData.text_output : (responseData.text_pre_code_response)));
+                    const content = tableOutput ? "" : (parsedChartResponse ? "" : (typeof responseData.text_output === 'string' ? responseData.text_output : (responseData.text_pre_code_response)));
                     console.log('Content:', content);
                     console.log('Final item:', { tableOutput, tableHtml, content, graphObj });
                     
@@ -220,12 +221,12 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
                 {/* AI Response */}
                 <Box sx={{
                   alignSelf: "flex-start",
-                  maxWidth: item?.answer ? "100%" : "80%",
+                  maxWidth: item?.graph ? "100%" : "80%",
                   backgroundColor: "#fff",
-                  padding: "12px",
-                  width: item?.answer ? "100%" : "80%",
+                  padding:item.graph ? "0" : "12px",
+                  width: item?.graph ? "100%" : "80%",
                   borderRadius: "12px 12px 12px 0",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  boxShadow:item.graph ? "none" :"0 2px 4px rgba(0,0,0,0.1)",
                 }}>
                   {item.loading ? (
                     <CircularProgress size={20} />
