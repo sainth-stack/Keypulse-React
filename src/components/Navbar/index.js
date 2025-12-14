@@ -23,7 +23,7 @@ function Navbar() {
       setName("Resilience")
     } else if (location.pathname == '/sustainability') {
       setName("Sustainability")
-    } else if (location.pathname == '/reports' || location.pathname=='/review-report') {
+    } else if (location.pathname == '/reports' || location.pathname == '/review-report') {
       setName("Reports")
     } else {
       setName("KProcess")
@@ -36,17 +36,17 @@ function Navbar() {
 
   return (
     <>
-      <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm sticky-top bg-white-fixed" style={{zIndex:500}}>
-        <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingLeft:'40px',cursor:'pointer'}} id="navbarNav" onClick={()=>navigate('/')}>
+      <nav class="navbar navbar-expand-lg  navbar-light bg-white shadow-sm fixed-top bg-white-fixed" style={{ zIndex: 500 }}>
+        <div class="collapse navbar-collapse" style={{ marginLeft: '0px', paddingLeft: '40px', cursor: 'pointer' }} id="navbarNav" onClick={() => navigate('/')}>
           <img
             src={Logo}
-            style={{ width: '70px',height:'70px' }}
+            style={{ width: '70px', height: '70px' }}
             id="logo_RL"
           />
         </div>
 
         <div className="position-absolute w-100 d-flex justify-content-center" style={{ pointerEvents: 'none' }}>
-          <h2 style={{fontSize:'30px',fontWeight:'bold'}} className="m-0">DataPX1</h2>
+          <h2 style={{ fontSize: '30px', fontWeight: 'bold' }} className="m-0">DataPX1</h2>
         </div>
 
         <div class="nav-item ms-1 dropdown d-flex align-items-center mr-0 pr-0" style={{ color: 'black' }}>
@@ -69,13 +69,13 @@ function Navbar() {
             {/* <span class="dropdown-item">Action</span> */}
             <span class="dropdown-item" onClick={() => handleLogout()}>Logout</span>
           </div>
-          <div class="collapse navbar-collapse" style={{ marginLeft: '0px',paddingRight:'30px',paddingLeft:'10px'}} id="navbarNav">
-          <img
-            src={logo}
-            style={{ width: '140px',height:'50px' }}
-            id="logo_RL"
-          />
-        </div>
+          <div class="collapse navbar-collapse" style={{ marginLeft: '0px', paddingRight: '30px', paddingLeft: '10px' }} id="navbarNav">
+            <img
+              src={logo}
+              style={{ width: '140px', height: '50px' }}
+              id="logo_RL"
+            />
+          </div>
         </div>
       </nav>
     </>

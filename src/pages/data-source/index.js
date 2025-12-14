@@ -27,9 +27,9 @@ export default function DataSource() {
   const [replaceLoading, setReplaceLoading] = useState(false);
   const [deletingFile, setDeletingFile] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  // const [fileDescriptions, setFileDescriptions] = useState({}); // { fileName: desc }
-  // const [showDescModal, setShowDescModal] = useState(false);
-  // const [pendingUploadFiles, setPendingUploadFiles] = useState([]); // Files waiting for desc
+  const [fileDescriptions, setFileDescriptions] = useState({}); // { fileName: desc }
+  const [showDescModal, setShowDescModal] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState([]); // Files waiting for desc
   
   // New states for pagination and view all modal
   const [showViewAllModal, setShowViewAllModal] = useState(false);
@@ -217,12 +217,8 @@ export default function DataSource() {
     }
 
     // Instead of uploading directly, show description modal
-    // setPendingUploadFiles(selectedFiles);
-    // setShowDescModal(true);
-    // setIsUploading(false);
-    
-    // Direct upload without description modal
-    await uploadFiles(selectedFiles);
+    setPendingUploadFiles(selectedFiles);
+    setShowDescModal(true);
     setIsUploading(false);
   };
 
@@ -243,14 +239,9 @@ export default function DataSource() {
       return item.originalFile;
     });
     // Instead of uploading directly, show description modal for these files
-    // setPendingUploadFiles(filesToUpload);
-    // setShowFileExistsModal(false);
-    // setShowDescModal(true);
-    // setReplaceLoading(false);
-    
-    // Direct upload without description modal
-    await uploadFiles(filesToUpload);
+    setPendingUploadFiles(filesToUpload);
     setShowFileExistsModal(false);
+    setShowDescModal(true);
     setReplaceLoading(false);
   };
 
@@ -266,12 +257,12 @@ export default function DataSource() {
     files.forEach(file => {
       formData.append('file', file);
     });
-    // Add file_name_desc as JSON string - COMMENTED OUT
-    // if (Object.keys(fileDescriptions).length > 0) {
-    //   formData.append('file_name_desc', JSON.stringify(
-    //     Object.fromEntries(files.map(f => [f.name, fileDescriptions[f.name] || '']))
-    //   ));
-    // }
+    // Add file_name_desc as JSON string
+    if (Object.keys(fileDescriptions).length > 0) {
+      formData.append('file_name_desc', JSON.stringify(
+        Object.fromEntries(files.map(f => [f.name, fileDescriptions[f.name] || '']))
+      ));
+    }
     try {
       const response = await fetch(`${API_URL}/file_upload/`, {
         method: 'POST',
@@ -433,29 +424,29 @@ export default function DataSource() {
     setSearchTerm('');
   };
 
-  // Description Modal Handlers - COMMENTED OUT
-  // const handleDescChange = (fileName, value) => {
-  //   setFileDescriptions(prev => ({ ...prev, [fileName]: value }));
-  // };
+  // Description Modal Handlers
+  const handleDescChange = (fileName, value) => {
+    setFileDescriptions(prev => ({ ...prev, [fileName]: value }));
+  };
 
-  // const handleDescModalClose = () => {
-  //   setShowDescModal(false);
-  //   setPendingUploadFiles([]);
-  //   setFileDescriptions({});
-  // };
+  const handleDescModalClose = () => {
+    setShowDescModal(false);
+    setPendingUploadFiles([]);
+    setFileDescriptions({});
+  };
 
-  // const handleDescModalSubmit = async () => {
-  //   // Validate all descriptions are filled
-  //   const missing = pendingUploadFiles.some(f => !fileDescriptions[f.name]?.trim());
-  //   if (missing) {
-  //     toast.error('Please enter a description for all files.');
-  //     return;
-  //   }
-  //   await uploadFiles(pendingUploadFiles, fileDescriptions);
-  //   setShowDescModal(false);
-  //   setPendingUploadFiles([]);
-  //   setFileDescriptions({});
-  // };
+  const handleDescModalSubmit = async () => {
+    // Validate all descriptions are filled
+    const missing = pendingUploadFiles.some(f => !fileDescriptions[f.name]?.trim());
+    if (missing) {
+      toast.error('Please enter a description for all files.');
+      return;
+    }
+    await uploadFiles(pendingUploadFiles, fileDescriptions);
+    setShowDescModal(false);
+    setPendingUploadFiles([]);
+    setFileDescriptions({});
+  };
 
   return (
     <div className="data-source-container">
@@ -709,8 +700,8 @@ export default function DataSource() {
         </DialogActions>
       </Dialog>
 
-      {/* Description Modal - COMMENTED OUT */}
-      {/* <Dialog open={showDescModal} onClose={handleDescModalClose} maxWidth="sm" fullWidth>
+      {/* Description Modal */}
+      <Dialog open={showDescModal} onClose={handleDescModalClose} maxWidth="sm" fullWidth>
         <DialogTitle>File Descriptions</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
@@ -734,7 +725,7 @@ export default function DataSource() {
           <Button onClick={handleDescModalClose}>Cancel</Button>
           <Button onClick={handleDescModalSubmit} variant="contained">Upload</Button>
         </DialogActions>
-      </Dialog> */}
+      </Dialog>
 
       {/* Main Content */}
       <div className="header-section">

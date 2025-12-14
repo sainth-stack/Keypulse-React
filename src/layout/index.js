@@ -20,7 +20,7 @@ export function AdminLayout(props) {
         {isAuthenticated() ? (
           <div className="col-lg-12 col-md-12 col-sm-12 col-xs-12 p-0 m-0">
             <Navbar />
-            <div className="d-flex justify-content-between">
+            <div className="d-flex justify-content-between" >
               <div className={""}>
                 <Sidebar />
               </div>

@@ -10,7 +10,7 @@ const SessionStatus = ({ showDetails = false }) => {
     const updateSessionInfo = () => {
       const info = sessionManager.getSessionInfo();
       setSessionInfo(info);
-      
+
       if (info.isValid && info.timeUntilExpiry > 0) {
         const minutes = Math.floor(info.timeUntilExpiry / (1000 * 60));
         const seconds = Math.floor((info.timeUntilExpiry % (1000 * 60)) / 1000);
@@ -22,10 +22,10 @@ const SessionStatus = ({ showDetails = false }) => {
 
     // Update immediately
     updateSessionInfo();
-    
+
     // Set up interval to update every second for smooth countdown
     const interval = setInterval(updateSessionInfo, 1000);
-    
+
     // Cleanup interval on unmount
     return () => clearInterval(interval);
   }, []);
@@ -44,12 +44,17 @@ const SessionStatus = ({ showDetails = false }) => {
   };
 
   if (!showDetails) {
+    // Only show if less than 5 minutes remaining
+    if (sessionInfo.timeUntilExpiry > 5 * 60 * 1000) {
+      return null;
+    }
+
     // Simple status display in bottom left corner
     return (
-      <div style={{ 
-        position: 'fixed', 
-        bottom: '20px', 
-        left: '20px', 
+      <div style={{
+        position: 'fixed',
+        bottom: '20px',
+        left: '20px',
         background: sessionInfo.isValid ? '#2196F3' : '#f44336',
         color: 'white',
         padding: '8px 12px',
@@ -80,33 +85,33 @@ const SessionStatus = ({ showDetails = false }) => {
       zIndex: 1000
     }}>
       <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>Session Status</h4>
-      
+
       <div style={{ marginBottom: '8px' }}>
         <strong>Status:</strong> {sessionInfo.isValid ? 'Active' : 'Expired'}
       </div>
-      
+
       <div style={{ marginBottom: '8px' }}>
         <strong>Time Left:</strong> {timeLeft}
       </div>
-      
+
       <div style={{ marginBottom: '8px' }}>
         <strong>Tenant:</strong> {sessionInfo.tenant.tenant_name || 'N/A'}
       </div>
-      
+
       <div style={{ marginBottom: '8px' }}>
         <strong>Timeout:</strong> {sessionInfo.tenant.tenant_timeout || 30} minutes
       </div>
-      
+
       <div style={{ marginBottom: '8px' }}>
         <strong>User:</strong> {sessionInfo.user.username || 'N/A'}
       </div>
-      
+
       {sessionInfo.expiryTime && (
         <div style={{ marginBottom: '12px', fontSize: '12px', color: '#666' }}>
           <strong>Expires:</strong> {sessionInfo.expiryTime.toLocaleString()}
         </div>
       )}
-      
+
       <div style={{ display: 'flex', gap: '8px' }}>
         <button
           onClick={handleExtendSession}
@@ -122,7 +127,7 @@ const SessionStatus = ({ showDetails = false }) => {
         >
           Extend Session
         </button>
-        
+
         <button
           onClick={handleLogout}
           style={{

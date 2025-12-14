@@ -18,21 +18,25 @@ const Kpi = () => {
     const [initialLoading, setInitialLoading] = useState(true); // New state for initial page loading
     const hasInitializedRef = useRef(false); // Use ref to prevent multiple initial calls
 
+    // New state for controlling Collapse and auto-scrolling
+    const [activeKeys, setActiveKeys] = useState([]);
+    const [scrollToKey, setScrollToKey] = useState(null);
+
     // Auto-generate default KPIs when component mounts
     useEffect(() => {
         const generateDefaultKPIs = async () => {
             // Prevent multiple calls during initial loading
             if (hasInitializedRef.current) return;
-            
+
             hasInitializedRef.current = true;
-            
+
             try {
                 // Get user ID from localStorage
                 const user = JSON.parse(localStorage.getItem('user') || '{}');
                 const userId = user.id;
                 const defaultPrompt = "Generate 4 KPIs based on the dataset";
 
-                const response = await axios.post(`${API_URL}/kpi_process`, 
+                const response = await axios.post(`${API_URL}/kpi_process`,
                     `prompt=${encodeURIComponent(defaultPrompt)}`,
                     {
                         headers: {
@@ -44,10 +48,10 @@ const Kpi = () => {
                 setKpis(response?.data?.kpis || []);
                 // Log KPI Viewed event with default KPIs
                 if (window && window.amplitude) {
-                  logAmplitudeEvent('KPI Viewed', {
-                    defaultPrompt,
-                    kpis: response?.data?.kpis || []
-                  });
+                    logAmplitudeEvent('KPI Viewed', {
+                        defaultPrompt,
+                        kpis: response?.data?.kpis || []
+                    });
                 }
                 // Don't show success message for initial load
             } catch (error) {
@@ -63,6 +67,22 @@ const Kpi = () => {
         generateDefaultKPIs();
     }, []);
 
+    // Effect to handle auto-scrolling
+    useEffect(() => {
+        if (scrollToKey) {
+            // We need to wait for the DOM to update and the panel to be rendered
+            // A small timeout helps ensure the element exists
+            const timer = setTimeout(() => {
+                const element = document.getElementById(`kpi-panel-${scrollToKey}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    setScrollToKey(null); // Reset after scrolling
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [scrollToKey, selectedKpiImage]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!prompt.trim()) {
@@ -77,7 +97,7 @@ const Kpi = () => {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id;
 
-            const response = await axios.post(`${API_URL}/kpi_process`, 
+            const response = await axios.post(`${API_URL}/kpi_process`,
                 `prompt=${encodeURIComponent(prompt)}`,
                 {
                     headers: {
@@ -90,10 +110,10 @@ const Kpi = () => {
             message.success('KPIs generated successfully');
             // Log KPI Query Run event with prompt and resulting KPIs
             if (window && window.amplitude) {
-              logAmplitudeEvent('KPI Query Run', {
-                prompt,
-                kpis: response?.data?.kpis || []
-              });
+                logAmplitudeEvent('KPI Query Run', {
+                    prompt,
+                    kpis: response?.data?.kpis || []
+                });
             }
         } catch (error) {
             console.error('Error fetching KPIs:', error);
@@ -108,14 +128,18 @@ const Kpi = () => {
         try {
             setLoadingImage(true);
             setSelectedKpiNames(prev => [...prev, kpiName]);
-            
+
+            // Add to active keys and set for scrolling
+            setActiveKeys(prev => [...prev, kpiName]);
+            setScrollToKey(kpiName);
+
             const newKpiImage = {
                 name: kpiName,
                 plots: null,
                 code: null,
                 loading: true
             };
-            
+
             setSelectedKpiImage(prev => [...prev, newKpiImage]);
 
             // Get user ID from localStorage
@@ -137,8 +161,8 @@ const Kpi = () => {
                 const formattedCode = response.data.code;
                 const plots = response.data.plots;
 
-                setSelectedKpiImage(prev => 
-                    prev.map(item => 
+                setSelectedKpiImage(prev =>
+                    prev.map(item =>
                         item.name === kpiName
                             ? {
                                 ...item,
@@ -156,6 +180,7 @@ const Kpi = () => {
             message.error(`Failed to generate visualization for ${kpiName}`);
             setSelectedKpiNames(prev => prev.filter(name => name !== kpiName));
             setSelectedKpiImage(prev => prev.filter(item => item.name !== kpiName));
+            setActiveKeys(prev => prev.filter(key => key !== kpiName));
         } finally {
             setLoadingImage(false);
         }
@@ -168,6 +193,7 @@ const Kpi = () => {
         if (selectedKpiNames.includes(kpiName)) {
             setSelectedKpiNames(prev => prev.filter(name => name !== kpiName));
             setSelectedKpiImage(prev => prev.filter(item => item.name !== kpiName));
+            setActiveKeys(prev => prev.filter(key => key !== kpiName));
         } else {
             generateKPIImage(kpi);
         }
@@ -191,7 +217,7 @@ const Kpi = () => {
     return (
         <div className="kpi-container">
             <h1 className="kpi-title">KPI Generator</h1>
-            
+
             <form className="kpi-form" onSubmit={handleSubmit}>
                 <div className="form-group">
                     <div className="input-label">
@@ -210,18 +236,18 @@ const Kpi = () => {
                     </Spin>
                 </div>
             </form>
-                         {Object.keys(kpis)?.length > 0 && (
-                 <div className="kpi-message">
-                     <p>Below are the suggested {Object.keys(kpis).length} KPIs based on the input data.</p>
-                 </div>
-             )}
-            
+            {Object.keys(kpis)?.length > 0 && (
+                <div className="kpi-message">
+                    <p>Below are the suggested {Object.keys(kpis).length} KPIs based on the input data.</p>
+                </div>
+            )}
+
             {Object.keys(kpis)?.length > 0 && (
                 <div className="kpi-grid">
                     {Object.entries(kpis).map(([key, kpi]) => (
                         <div
                             key={key}
-                            className={`kpi-card ${selectedKpiNames.includes(kpi.KPI_Name) ? 'selected' : ''}`}
+                            className={`kpi-card ${selectedKpiNames.includes(kpi["KPI Name"]) ? 'selected' : ''}`}
                             onClick={() => handleCardClick(kpi)}
                         >
                             <div className="kpi-header">
@@ -250,9 +276,16 @@ const Kpi = () => {
             )}
 
             {selectedKpiImage.length > 0 && (
-                <Collapse>
+                <Collapse
+                    activeKey={activeKeys}
+                    onChange={setActiveKeys}
+                >
                     {selectedKpiImage.map((item, index) => (
-                        <Collapse.Panel header={item.name} key={index}>
+                        <Collapse.Panel
+                            header={item.name}
+                            key={item.name}
+                            id={`kpi-panel-${item.name}`}
+                        >
                             {item.loading ? (
                                 <div className="loading-container">
                                     <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
@@ -280,7 +313,7 @@ const Kpi = () => {
                                             />
                                         </div>
                                     )}
-                                    
+
                                 </>
                             )}
                         </Collapse.Panel>

@@ -64,7 +64,8 @@ const AnswersChat2 = ({
          </div> 
      </div> </>
       )}
-    </div> : <div style={{width:'100%',maxWidth:'100%'}}>
+    </div> :
+     <div style={{width:'100%',maxWidth:'100%'}}>
     <Plot
                   data={graph?.data}
                   layout={graph?.layout}
