@@ -1,6 +1,7 @@
 import { API_URL } from '../../const';
 import './index.css';
 import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import Plot from 'react-plotly.js';
 import { Tabs, Tab, Box, Typography, CircularProgress } from '@mui/material';
 import { logAmplitudeEvent } from '../../utils';
@@ -263,22 +264,33 @@ const[predictLoader,setPredictLoader] = useState(false)
                 'OutlierDetection': 'OutlierDetection'
             };
 
-            const response = await fetch(`${API_URL}/models`, {
-                method: 'POST',
+            const response = await axios.post(`${API_URL}/models`, new URLSearchParams({
+                model: modelMapping[formData.model],
+                col: formData.col,
+                frequency: formData.frequency,
+                tenure: formData.tenure,
+                file_name: selectedFile
+            }), {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-User-ID': userId,
                 },
-                body: new URLSearchParams({
-                    model: modelMapping[formData.model],
-                    col: formData.col,
-                    frequency: formData.frequency,
-                    tenure: formData.tenure,
-                    file_name: selectedFile
-                }),
             });
-
-            const data = await response.json();
+console.log(response,'sdfiusdfhsdiuf22')
+            let data = response.data;
+            // Safe parsing: if data is a string, try to parse it as JSON
+            if (typeof data === 'string') {
+                try {
+                    // Replace NaN with null before parsing (NaN is not valid JSON)
+                    const cleanedData = data.replace(/:\s*NaN\b/g, ': null');
+                    data = JSON.parse(cleanedData);
+                } catch (e) {
+                    // If parsing fails, try to use the original data (might already be an object)
+                    console.error('Failed to parse response data:', e);
+                    // If response.data is still a string, we can't use it as-is, so try to handle gracefully
+                    data = typeof response.data === 'string' ? response.data : response.data;
+                }
+            }
             setResponse(data);
             // Log AI Model Analysis Run event
             if (window && window.amplitude) {
@@ -321,7 +333,7 @@ const[predictLoader,setPredictLoader] = useState(false)
             setLoading(false);
         }
     };
-
+console.log(response,'sdfiusdfhsdiuf')
     const renderResponse = () => {
         if (!response) return null;
     
@@ -329,7 +341,6 @@ const[predictLoader,setPredictLoader] = useState(false)
         if (response.msg) {
             return <div className="error-text">{response.msg}</div>;
         }
-    
         switch (formData.model) {
             case 'Classification':
                 let clusteredData;
