@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { API_URL } from "../../const";
+import axios from "axios";
 import { CircularProgress } from '@mui/material';
-import { FaCloudUploadAlt, FaTrashAlt, FaPlus, FaCheck, FaSearch, FaTimes } from "react-icons/fa";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
@@ -9,9 +9,17 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
 import { Box, Typography, Paper, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
+import AddIcon from '@mui/icons-material/Add';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
+import CheckIcon from '@mui/icons-material/Check';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { logAmplitudeEvent } from '../../utils';
+import { LoadingIndicator } from '../../components/loader';
 
 const thumbnail = require('../../assets/images/dataThumbnail.jpeg');
 
@@ -19,6 +27,8 @@ export default function DataSource() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null); // 'uploading' | 'processing' | null
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
@@ -30,19 +40,30 @@ export default function DataSource() {
   const [fileDescriptions, setFileDescriptions] = useState({}); // { fileName: desc }
   const [showDescModal, setShowDescModal] = useState(false);
   const [pendingUploadFiles, setPendingUploadFiles] = useState([]); // Files waiting for desc
-  
+
   // New states for pagination and view all modal
   const [showViewAllModal, setShowViewAllModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredFiles, setFilteredFiles] = useState([]);
-  
+
+  // Rename modal state
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameFile, setRenameFile] = useState(null);
+  const [renameNewName, setRenameNewName] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
+
+  // Info modal state (file metadata - supports multiple merged files)
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [infoMetadata, setInfoMetadata] = useState(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+
   // Stable sorted files - sorted once on load, doesn't change during selection
   const [stableSortedFiles, setStableSortedFiles] = useState([]);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [selectedFilesLoaded, setSelectedFilesLoaded] = useState(false);
-  
+
   const ITEMS_PER_PAGE = 5;
-  
+
   const userObj = localStorage.getItem('user');
   const userId = userObj ? JSON.parse(userObj).id : null;
 
@@ -54,26 +75,26 @@ export default function DataSource() {
       initialLoadComplete,
       selectedFilesLength: selectedFiles.length
     });
-    
+
     // Only run this once when both API calls have completed
     if (files.length > 0 && selectedFilesLoaded && !initialLoadComplete) {
       console.log('✅ CONDITIONS MET - Creating initial sorted files with:');
       console.log('Files:', files);
       console.log('Selected files:', selectedFiles);
       console.log('selectedFilesLoaded:', selectedFilesLoaded);
-      
+
       const sortedFiles = [...files].sort((a, b) => {
         const aSelected = selectedFiles.includes(a);
         const bSelected = selectedFiles.includes(b);
-        
+
         // Selected files come first
         if (aSelected && !bSelected) return -1;
         if (!aSelected && bSelected) return 1;
-        
+
         // Within same selection status, maintain original order
         return files.indexOf(a) - files.indexOf(b);
       });
-      
+
       console.log('✅ Initial sorted files:', sortedFiles);
       setStableSortedFiles(sortedFiles);
       setInitialLoadComplete(true);
@@ -81,7 +102,7 @@ export default function DataSource() {
       console.log('❌ CONDITIONS NOT MET - Skipping sort');
     }
   }, [files, selectedFiles, selectedFilesLoaded, initialLoadComplete]);
-  
+
   // Reset when files are refreshed
   useEffect(() => {
     if (files.length === 0) {
@@ -94,7 +115,7 @@ export default function DataSource() {
   // Filter files based on search term - use stable sorted files
   useEffect(() => {
     if (searchTerm) {
-      setFilteredFiles(stableSortedFiles.filter(file => 
+      setFilteredFiles(stableSortedFiles.filter(file =>
         file.toLowerCase().includes(searchTerm.toLowerCase())
       ));
     } else {
@@ -108,12 +129,11 @@ export default function DataSource() {
     try {
       const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
-      const res = await fetch(`${API_URL}/get_s3_files/`, {
+      const res = await axios.get(`${API_URL}/get_user_files/`, {
         headers: { 'X-User-ID': userId },
       });
-      const data = await res.json();
-      console.log('Loaded files from API:', data.available_files);
-      setFiles(data.available_files || []);
+      console.log('Loaded files from API:', res.data.available_files);
+      setFiles(res.data.available_files || []);
       // Reset the initial load flag so files get re-sorted with current selections
       setInitialLoadComplete(false);
     } catch (e) {
@@ -129,18 +149,12 @@ export default function DataSource() {
       const userObj = localStorage.getItem('user');
       const userId = userObj ? JSON.parse(userObj).id : null;
       console.log('Fetching user selected files for userId:', userId);
-      const response = await fetch(`${API_URL}/get_user_selected_file_name`, {
-        method: 'GET',
+      const response = await axios.get(`${API_URL}/get_user_selected_file_name`, {
         headers: { 'X-User-ID': userId },
       });
-      console.log('Response status:', response.status, response.ok);
-      if (!response.ok) {
-        console.log('Response not ok, setting empty selected files');
-        setSelectedFiles([]);
-        setSelectedFilesLoaded(true);
-        return;
-      }
-      const data = await response.json();
+      console.log('Response status:', response.status);
+
+      const data = response.data;
       console.log('Raw response data:', data);
       if (data && Array.isArray(data.file_name)) {
         console.log('Setting selected files to:', data.file_name);
@@ -186,13 +200,10 @@ export default function DataSource() {
     files.forEach(file => {
       formData.append('file_name', file.name);
     });
-    const response = await fetch(`${API_URL}/check_input_file_s3/`, {
-      method: 'POST',
+    const response = await axios.post(`${API_URL}/check_input_file_s3/`, formData, {
       headers: { 'X-User-ID': userId },
-      body: formData,
     });
-    const data = await response.json();
-    return data.files_status || {};
+    return response.data.files_status || {};
   };
 
   const handleFileChange = async (e) => {
@@ -225,7 +236,7 @@ export default function DataSource() {
   const handleDuplicateActionChange = (idx, action) => {
     setDuplicateFiles(prev => prev.map((item, i) => i === idx ? { ...item, action } : item));
   };
-  
+
   const handleDuplicateNameChange = (idx, newName) => {
     setDuplicateFiles(prev => prev.map((item, i) => i === idx ? { ...item, newName } : item));
   };
@@ -253,6 +264,7 @@ export default function DataSource() {
 
   const uploadFiles = async (files, fileDescriptions = {}) => {
     setIsUploading(true);
+    setUploadStatus('uploading');
     const formData = new FormData();
     files.forEach(file => {
       formData.append('file', file);
@@ -264,15 +276,24 @@ export default function DataSource() {
       ));
     }
     try {
-      const response = await fetch(`${API_URL}/file_upload/`, {
-        method: 'POST',
+      await axios.post(`${API_URL}/file_upload/`, formData, {
         headers: { 'X-User-ID': userId },
-        body: formData,
       });
-      if (!response.ok) throw new Error('File upload failed');
       toast.success('Files uploaded successfully!');
       logAmplitudeEvent('File Upload', { userId, fileCount: files.length, fileNames: files.map(f => f.name) });
       console.log('[Amplitude] File Upload event sent', files.map(f => f.name));
+
+      // Call process_file API after successful upload
+      setUploadStatus('processing');
+      try {
+        const processResponse = await axios.get(`${API_URL}/process_file`, {
+          headers: { 'X-User-ID': userId },
+        });
+        console.log('process_file response:', processResponse.data);
+      } catch (processError) {
+        console.warn('process_file API call error:', processError);
+      }
+
       fetchFiles();
       setShowFileExistsModal(false);
       setDuplicateFiles([]);
@@ -283,36 +304,13 @@ export default function DataSource() {
       console.warn('[Amplitude] File Upload Failure event sent', error?.message);
     } finally {
       setIsUploading(false);
+      setUploadStatus(null);
       setReplaceLoading(false);
     }
   };
 
   const handleUploadClick = () => {
     fileInputRef.current.click();
-  };
-
-  const handleFileSelect = async (fileName) => {
-    localStorage.setItem('fileName', fileName);
-    try {
-      const userObj = localStorage.getItem('user');
-      const userId = userObj ? JSON.parse(userObj).id : null;
-      const formData = new FormData();
-      formData.append('file_name', fileName);
-      const response = await fetch(`${API_URL}/update_user_file_name/`, {
-        method: 'POST',
-        headers: { 'X-User-ID': userId },
-        body: formData,
-      });
-      if (!response.ok) throw new Error('Failed to update file name');
-      toast.success('File selected!');
-      logAmplitudeEvent('File Selected', { userId, fileName });
-      console.log('[Amplitude] File Selected event sent', fileName);
-      navigate('/');
-    } catch (error) {
-      toast.error('Failed to select file. Please try again.');
-      logAmplitudeEvent('File Select Failure', { userId, fileName, error: error?.message });
-      console.warn('[Amplitude] File Select Failure event sent', fileName, error?.message);
-    }
   };
 
   const handleDelete = async (fileName, e) => {
@@ -323,12 +321,10 @@ export default function DataSource() {
       const userId = userObj ? JSON.parse(userObj).id : null;
       const formData = new FormData();
       formData.append('file_name', fileName);
-      const response = await fetch(`${API_URL}/delete_file/`, {
-        method: 'POST',
+      const response = await axios.post(`${API_URL}/delete_file/`, formData, {
         headers: { 'X-User-ID': userId },
-        body: formData,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.status) {
         toast.success('File deleted successfully!');
         logAmplitudeEvent('File Delete', { userId, fileName });
@@ -367,14 +363,15 @@ export default function DataSource() {
       toast.error('Please select at least one file.');
       return;
     }
+    setIsSubmitting(true);
     try {
       const validSelectedFiles = selectedFiles.filter(fileName => stableSortedFiles.includes(fileName));
-      
+
       if (validSelectedFiles.length === 0) {
         toast.error('None of the selected files exist anymore. Please select available files.');
         return;
       }
-      
+
       // Log Amplitude event for submit
       if (window && window.amplitude) {
         logAmplitudeEvent('Data Source Submit', { data: validSelectedFiles });
@@ -386,26 +383,36 @@ export default function DataSource() {
       validSelectedFiles.forEach(fileName => {
         formData.append('file_name', fileName);
       });
-      const response = await fetch(`${API_URL}/update_user_file_name`, {
-        method: 'POST',
+      await axios.post(`${API_URL}/update_user_file_name`, formData, {
         headers: {
           'X-User-ID': userId,
         },
-        body: formData,
       });
-      if (!response.ok) throw new Error('Failed to update file name');
       toast.success('Files selected!');
       localStorage.setItem('fileName', JSON.stringify(validSelectedFiles));
+
+      // Call download_selected_data API after successful file selection
+      try {
+        const downloadResponse = await axios.get(`${API_URL}/download_selected_data`, {
+          headers: { 'X-User-ID': userId },
+        });
+        console.log('download_selected_data response:', downloadResponse.data);
+      } catch (downloadError) {
+        console.warn('download_selected_data API call error:', downloadError);
+      }
+
       navigate('/');
     } catch (error) {
       toast.error('Failed to select files. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Get displayed files (first 5 for main view) - use stable sorted files
   const displayedFiles = stableSortedFiles.slice(0, ITEMS_PER_PAGE);
   const hasMoreFiles = stableSortedFiles.length > ITEMS_PER_PAGE;
-  
+
   // Debug: Log what's being displayed
   console.log('📊 RENDER STATE:', {
     stableSortedFiles: stableSortedFiles.slice(0, 3), // First 3 only to avoid spam
@@ -442,16 +449,110 @@ export default function DataSource() {
       toast.error('Please enter a description for all files.');
       return;
     }
-    await uploadFiles(pendingUploadFiles, fileDescriptions);
+    // Close modal so user sees upload card with "Uploading File" / "Processing File"
     setShowDescModal(false);
     setPendingUploadFiles([]);
+    const descs = { ...fileDescriptions };
     setFileDescriptions({});
+    await uploadFiles(pendingUploadFiles, descs);
+  };
+
+  // Rename: open modal with prefilled name
+  const handleRenameClick = (fileName, e) => {
+    e.stopPropagation();
+    setRenameFile(fileName);
+    setRenameNewName(fileName);
+    setShowRenameModal(true);
+  };
+
+  const handleRenameModalClose = () => {
+    setShowRenameModal(false);
+    setRenameFile(null);
+    setRenameNewName('');
+  };
+
+  const handleRenameSave = async () => {
+    if (!renameFile || !renameNewName?.trim() || renameNewName.trim() === renameFile) {
+      if (renameNewName?.trim() === renameFile) {
+        handleRenameModalClose();
+      }
+      return;
+    }
+    setRenameLoading(true);
+    try {
+      const userObj = localStorage.getItem('user');
+      const userId = userObj ? JSON.parse(userObj).id : null;
+      const formData = new FormData();
+      formData.append('old_name', renameFile);
+      formData.append('new_name', renameNewName.trim());
+      const response = await axios.post(`${API_URL}/rename_file/`, formData, {
+        headers: { 'X-User-ID': userId },
+      });
+      if (response.data?.status !== false) {
+        toast.success('File renamed successfully!');
+        handleRenameModalClose();
+        fetchFiles();
+        setSelectedFiles(prev =>
+          prev.includes(renameFile)
+            ? prev.map(f => (f === renameFile ? renameNewName.trim() : f))
+            : prev
+        );
+      } else {
+        toast.error(response.data?.message || 'Failed to rename file.');
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to rename file. Please try again.');
+    } finally {
+      setRenameLoading(false);
+    }
+  };
+
+  // Info: fetch metadata via get_file_meta_data (supports multiple merged files)
+  const handleInfoClick = async (fileName, e) => {
+    e.stopPropagation();
+    setShowInfoModal(true);
+    setInfoMetadata(null);
+    setInfoLoading(true);
+    try {
+      const userObj = localStorage.getItem('user');
+      const userId = userObj ? JSON.parse(userObj).id : null;
+      const formData = new FormData();
+      formData.append('table', fileName);
+      const response = await axios.post(`${API_URL}/get_file_meta_data/`, formData, {
+        headers: { 'X-User-ID': userId },
+      });
+      const data = response.data;
+      // API returns { status, metadata: { table_name, files: { "file.csv": { file_name, rows, created_at, last_updated_at } } } }
+      if (data?.status && data?.metadata?.files) {
+        setInfoMetadata(data.metadata.files);
+      } else if (data && typeof data === 'object' && !data.metadata) {
+        // Legacy: flat object with file keys
+        setInfoMetadata(data);
+      } else {
+        setInfoMetadata({ [fileName]: data });
+      }
+    } catch (error) {
+      toast.error('Failed to fetch file info.');
+      setInfoMetadata(null);
+    } finally {
+      setInfoLoading(false);
+    }
+  };
+
+  const handleInfoModalClose = () => {
+    setShowInfoModal(false);
+    setInfoMetadata(null);
   };
 
   return (
     <div className="data-source-container">
+      {isUploading && (
+        <LoadingIndicator
+          message={uploadStatus === 'processing' ? 'Processing File' : 'Uploading File'}
+        />
+      )}
       <ToastContainer />
-      
+
       {/* File Exists Modal */}
       <Dialog open={showFileExistsModal} onClose={handleModalClose} maxWidth="sm" fullWidth>
         <DialogTitle>
@@ -494,7 +595,7 @@ export default function DataSource() {
                       Replace
                     </ToggleButton>
                     <ToggleButton value="rename" disabled={replaceLoading}>
-                      <DriveFileRenameOutlineIcon fontSize="small" sx={{ mr: 0.5 }} />
+                      <DriveFileRenameOutlineIcon style={{ marginRight: 4, fontSize: 18 }} />
                       Rename
                     </ToggleButton>
                   </ToggleButtonGroup>
@@ -527,10 +628,10 @@ export default function DataSource() {
       </Dialog>
 
       {/* View All Modal */}
-      <Dialog 
-        open={showViewAllModal} 
-        onClose={handleViewAllClose} 
-        maxWidth="lg" 
+      <Dialog
+        open={showViewAllModal}
+        onClose={handleViewAllClose}
+        maxWidth="lg"
         fullWidth
         PaperProps={{
           sx: {
@@ -541,7 +642,7 @@ export default function DataSource() {
           }
         }}
       >
-        <DialogTitle sx={{ 
+        <DialogTitle sx={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: 'white',
           position: 'relative',
@@ -553,7 +654,7 @@ export default function DataSource() {
             </Typography>
             <Button
               onClick={handleViewAllClose}
-              sx={{ 
+              sx={{
                 color: 'white',
                 minWidth: 'auto',
                 p: 1,
@@ -561,15 +662,15 @@ export default function DataSource() {
                 '&:hover': { background: 'rgba(255,255,255,0.1)' }
               }}
             >
-              <FaTimes />
+              <CloseIcon />
             </Button>
           </Box>
         </DialogTitle>
-        
+
         <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
           {/* Search Bar */}
-          <Box sx={{ 
-            p: 3, 
+          <Box sx={{
+            p: 3,
             borderBottom: '1px solid #e0e0e0',
             background: '#fafafa'
           }}>
@@ -582,18 +683,18 @@ export default function DataSource() {
                 variant="outlined"
                 size="medium"
                 InputProps={{
-                  startAdornment: <FaSearch style={{ marginRight: 12, color: '#666' }} />,
+                  startAdornment: <SearchIcon style={{ marginRight: 12, color: '#666' }} />,
                   endAdornment: searchTerm && (
                     <Button
                       onClick={clearSearch}
-                      sx={{ 
+                      sx={{
                         minWidth: 'auto',
                         p: 0.5,
                         color: '#666',
                         '&:hover': { background: 'rgba(0,0,0,0.04)' }
                       }}
                     >
-                      <FaTimes />
+                      <CloseIcon fontSize="small" />
                     </Button>
                   ),
                   sx: {
@@ -616,22 +717,22 @@ export default function DataSource() {
           </Box>
 
           {/* Files Grid in Modal */}
-          <Box sx={{ 
-            flex: 1, 
-            overflow: 'auto', 
+          <Box sx={{
+            flex: 1,
+            overflow: 'auto',
             p: 3,
             background: '#f8f9fa'
           }}>
             {filteredFiles.length === 0 ? (
-              <Box 
-                display="flex" 
-                flexDirection="column" 
-                alignItems="center" 
-                justifyContent="center" 
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
                 height="300px"
                 sx={{ color: '#666' }}
               >
-                <FaSearch style={{ fontSize: '3rem', marginBottom: 16, opacity: 0.3 }} />
+                <SearchIcon style={{ fontSize: '3rem', marginBottom: 16, opacity: 0.3 }} />
                 <Typography variant="h6" gutterBottom>
                   {searchTerm ? 'No files found' : 'No files available'}
                 </Typography>
@@ -649,31 +750,43 @@ export default function DataSource() {
                   >
                     {selectedFiles.includes(file) && (
                       <div className="selected-indicator">
-                        <FaCheck className="check-icon" />
+                        <CheckIcon className="check-icon" />
                       </div>
                     )}
                     <div className="modal-thumbnail-wrapper">
                       <img src={thumbnail} alt="thumbnail" className="modal-file-thumbnail" />
                     </div>
                     <div className="modal-file-name" title={file}>{file}</div>
-                    {deletingFile === file ? (
-                      <CircularProgress size={20} className="modal-delete-icon loading" />
-                    ) : (
-                      <FaTrashAlt
-                        className="modal-delete-icon"
-                        title="Delete file"
-                        onClick={e => handleDelete(file, e)}
+                    <div className="modal-file-card-actions">
+                      <InfoOutlinedIcon
+                        className="modal-card-action-icon modal-info-icon"
+                        titleAccess="File info"
+                        onClick={e => handleInfoClick(file, e)}
                       />
-                    )}
+                      <DriveFileRenameOutlineIcon
+                        className="modal-card-action-icon modal-edit-icon"
+                        titleAccess="Rename file"
+                        onClick={e => handleRenameClick(file, e)}
+                      />
+                      {deletingFile === file ? (
+                        <CircularProgress size={18} className="modal-delete-icon loading" />
+                      ) : (
+                        <DeleteOutlineIcon
+                          className="modal-card-action-icon modal-delete-icon"
+                          titleAccess="Delete file"
+                          onClick={e => handleDelete(file, e)}
+                        />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </Box>
         </DialogContent>
-        
-        <DialogActions sx={{ 
-          p: 3, 
+
+        <DialogActions sx={{
+          p: 3,
           borderTop: '1px solid #e0e0e0',
           background: '#fafafa',
           gap: 2
@@ -682,11 +795,11 @@ export default function DataSource() {
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              handleSubmitSelectedFiles();
+            onClick={async () => {
+              await handleSubmitSelectedFiles();
               setShowViewAllModal(false);
             }}
-            disabled={selectedFiles.length === 0}
+            disabled={selectedFiles.length === 0 || isSubmitting}
             variant="contained"
             sx={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -695,7 +808,14 @@ export default function DataSource() {
               }
             }}
           >
-            Submit Selected ({selectedFiles.length})
+            {isSubmitting ? (
+              <>
+                <CircularProgress size={20} sx={{ color: 'white', mr: 1 }} />
+                Submitting...
+              </>
+            ) : (
+              `Submit Selected (${selectedFiles.length})`
+            )}
           </Button>
         </DialogActions>
       </Dialog>
@@ -727,14 +847,304 @@ export default function DataSource() {
         </DialogActions>
       </Dialog>
 
+      {/* Rename Modal */}
+      <Dialog
+        open={showRenameModal}
+        onClose={handleRenameModalClose}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{
+          backdrop: { sx: { backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)' } }
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2)',
+            overflow: 'hidden',
+            border: '1px solid rgba(226, 232, 240, 0.8)'
+          }
+        }}
+      >
+        <DialogTitle
+          component="div"
+          sx={{
+            m: 0,
+            py: 2,
+            px: 3,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontWeight: 600,
+            fontSize: '1.125rem',
+            color: '#1e293b',
+            background: '#ffffff',
+            borderBottom: '1px solid #e2e8f0'
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.1) 100%)'
+              }}
+            >
+              <DriveFileRenameOutlineIcon sx={{ color: '#667eea', fontSize: 22 }} />
+            </Box>
+            <span>Rename File</span>
+          </Box>
+          <Button
+            onClick={handleRenameModalClose}
+            sx={{
+              minWidth: 32,
+              height: 32,
+              p: 0,
+              color: '#64748b',
+              borderRadius: '50%',
+              '&:hover': { background: '#f1f5f9', color: '#1e293b' }
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </Button>
+        </DialogTitle>
+        <DialogContent sx={{ py: 3, px: 3, mt: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, color: '#64748b', mb: 1 }}>
+            New file name
+          </Typography>
+          <TextField
+            fullWidth
+            value={renameNewName}
+            onChange={e => setRenameNewName(e.target.value)}
+            disabled={renameLoading}
+            placeholder="Enter new name"
+            variant="outlined"
+            autoFocus
+            inputProps={{ autoComplete: 'off' }}
+            sx={{
+              '& .MuiOutlinedInput-input': { fontSize: '1rem' },
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                backgroundColor: '#f8fafc',
+                '& fieldset': { borderColor: '#e2e8f0' },
+                '&:hover fieldset': { borderColor: '#94a3b8' },
+                '&.Mui-focused fieldset': { borderColor: '#667eea', borderWidth: 2 }
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions
+          sx={{
+            py: 2,
+            px: 3,
+            gap: 1.5,
+            borderTop: '1px solid #e2e8f0',
+            backgroundColor: '#fafbfc'
+          }}
+        >
+          <Button
+            onClick={handleRenameModalClose}
+            disabled={renameLoading}
+            variant="outlined"
+            sx={{
+              minWidth: 100,
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              borderColor: '#cbd5e1',
+              color: '#64748b',
+              '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRenameSave}
+            disabled={renameLoading || !renameNewName?.trim() || renameNewName.trim() === renameFile}
+            variant="contained"
+            sx={{
+              minWidth: 100,
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              boxShadow: '0 2px 8px rgba(102, 126, 234, 0.35)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+              }
+            }}
+          >
+            {renameLoading ? <CircularProgress size={22} sx={{ color: 'white' }} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Info Modal - file metadata (supports multiple merged files) */}
+      <Dialog
+        open={showInfoModal}
+        onClose={handleInfoModalClose}
+        maxWidth="sm"
+        fullWidth
+        slotProps={{
+          backdrop: { sx: { backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)' } }
+        }}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.2)',
+            overflow: 'hidden',
+            border: '1px solid rgba(226, 232, 240, 0.8)'
+          }
+        }}
+      >
+        <DialogTitle
+          component="div"
+          sx={{
+            m: 0,
+            py: 2,
+            px: 3,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontWeight: 600,
+            fontSize: '1.125rem',
+            color: '#1e293b',
+            background: '#ffffff',
+            borderBottom: '1px solid #e2e8f0'
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%)'
+              }}
+            >
+              <InfoOutlinedIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+            </Box>
+            <span>File Info</span>
+          </Box>
+          <Button
+            onClick={handleInfoModalClose}
+            sx={{
+              minWidth: 32,
+              height: 32,
+              p: 0,
+              color: '#64748b',
+              borderRadius: '50%',
+              '&:hover': { background: '#f1f5f9', color: '#1e293b' }
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </Button>
+        </DialogTitle>
+        <DialogContent sx={{ py: 3, px: 3 }}>
+          {infoLoading ? (
+            <Box display="flex" justifyContent="center" alignItems="center" py={6}>
+              <CircularProgress />
+            </Box>
+          ) : infoMetadata && Object.keys(infoMetadata).length > 0 ? (
+            <Box display="flex" flexDirection="column" mt={2}gap={2}>
+              {Object.entries(infoMetadata).map(([fileKey, meta]) => {
+                const m = typeof meta === 'object' ? meta : { file_name: fileKey, rows: meta };
+                const formatDate = (str) => {
+                  if (!str) return '';
+                  try {
+                    const d = new Date(str);
+                    return isNaN(d.getTime()) ? str : d.toLocaleString(undefined, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short'
+                    });
+                  } catch {
+                    return str;
+                  }
+                };
+                return (
+                  <Paper
+                    key={fileKey}
+                    elevation={0}
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: '#f8fafc'
+                    }}
+                  >
+                    <Typography variant="subtitle1" fontWeight={600} sx={{ color: '#1e293b', mb: 1.5 }}>
+                      {m.file_name || fileKey}
+                    </Typography>
+                    <Box display="flex" flexDirection="column" gap={1}>
+                      {m.rows != null && (
+                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                          <Typography variant="body2" color="textSecondary">Rows</Typography>
+                          <Typography variant="body2" fontWeight={500}>{m.rows.toLocaleString?.() ?? m.rows}</Typography>
+                        </Box>
+                      )}
+                      {m.created_at && (
+                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                          <Typography variant="body2" color="textSecondary">Created</Typography>
+                          <Typography variant="body2" fontWeight={500}>{formatDate(m.created_at)}</Typography>
+                        </Box>
+                      )}
+                      {m.last_updated_at && (
+                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                          <Typography variant="body2" color="textSecondary">Last updated</Typography>
+                          <Typography variant="body2" fontWeight={500}>{formatDate(m.last_updated_at)}</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Box>
+          ) : (
+            <Typography variant="body2" color="textSecondary" sx={{ py: 2 }}>
+              No metadata available.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions
+          sx={{
+            py: 2,
+            px: 3,
+            borderTop: '1px solid #e2e8f0',
+            backgroundColor: '#fafbfc'
+          }}
+        >
+          <Button
+            onClick={handleInfoModalClose}
+            variant="contained"
+            sx={{
+              minWidth: 100,
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '&:hover': { background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)' }
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Main Content */}
       <div className="header-section">
         <h1 className="data-source-title">Data Source</h1>
         <div className="stats-bar">
-        <div className="stat-item">
-          <span className="stat-number">{stableSortedFiles.length}</span>
-          <span className="stat-label">Total Files</span>
-        </div>
+          <div className="stat-item">
+            <span className="stat-number">{stableSortedFiles.length}</span>
+            <span className="stat-label">Total Files</span>
+          </div>
           <div className="stat-item">
             <span className="stat-number">{selectedFiles.length}</span>
             <span className="stat-label">Selected</span>
@@ -744,21 +1154,26 @@ export default function DataSource() {
 
       <div className="file-grid">
         {/* Upload Card */}
-        <div className="file-card upload-card" onClick={handleUploadClick} tabIndex={0} role="button">
+        <div
+          className={`file-card upload-card ${isUploading ? 'uploading' : ''}`}
+          onClick={handleUploadClick}
+          tabIndex={0}
+          role="button"
+        >
           <input
             type="file"
             style={{ display: 'none' }}
             ref={fileInputRef}
             onChange={handleFileChange}
             disabled={isUploading}
-            multiple 
-            accept=".csv,.xml,.pdf" 
+            multiple
+            accept=".csv,.xml,.pdf"
           />
-          <div className="thumbnail-wrapper">
-            <FaPlus className="plus-icon" />
+          <div className="thumbnail-wrapper upload-icon-wrapper">
+            <CloudUploadOutlinedIcon className="upload-cloud-icon" />
+            <AddIcon className="upload-plus-icon" />
           </div>
           <div className="file-name">Upload New</div>
-          {isUploading && <CircularProgress size={24} style={{ marginTop: 8 }} />}
         </div>
 
         {/* File Cards */}
@@ -771,7 +1186,7 @@ export default function DataSource() {
           </div>
         ) : displayedFiles.length === 0 && stableSortedFiles.length === 0 ? (
           <div className="empty-state">
-            <FaCloudUploadAlt className="empty-icon" />
+            <CloudUploadOutlinedIcon className="empty-icon" />
             <Typography variant="h6" gutterBottom>
               No files found
             </Typography>
@@ -789,30 +1204,42 @@ export default function DataSource() {
             >
               {selectedFiles.includes(file) && (
                 <div className="selected-indicator">
-                  <FaCheck className="check-icon" />
+                  <CheckIcon className="check-icon" />
                 </div>
               )}
               <div className="thumbnail-wrapper">
                 <img src={thumbnail} alt="thumbnail" className="file-thumbnail" />
               </div>
               <div className="file-name" title={file}>{file}</div>
-              {deletingFile === file ? (
-                <CircularProgress size={22} className="delete-icon loading" />
-              ) : (
-                <FaTrashAlt
-                  className="delete-icon"
-                  title="Delete file"
-                  onClick={e => handleDelete(file, e)}
+              <div className="file-card-actions">
+                <InfoOutlinedIcon
+                  className="card-action-icon info-icon"
+                  titleAccess="File info"
+                  onClick={e => handleInfoClick(file, e)}
                 />
-              )}
+                <DriveFileRenameOutlineIcon
+                  className="card-action-icon edit-icon"
+                  titleAccess="Rename file"
+                  onClick={e => handleRenameClick(file, e)}
+                />
+                {deletingFile === file ? (
+                  <CircularProgress size={20} className="delete-icon loading" />
+                ) : (
+                  <DeleteOutlineIcon
+                    className="card-action-icon delete-icon"
+                    titleAccess="Delete file"
+                    onClick={e => handleDelete(file, e)}
+                  />
+                )}
+              </div>
             </div>
           ))
         )}
 
         {/* View All Card */}
         {hasMoreFiles && (
-          <div 
-            className="file-card view-all-card" 
+          <div
+            className="file-card view-all-card"
             onClick={() => {
               if (window && window.amplitude) {
                 logAmplitudeEvent('Data Source View All', { data: stableSortedFiles });
@@ -820,7 +1247,7 @@ export default function DataSource() {
               }
               setShowViewAllModal(true);
             }}
-            tabIndex={0} 
+            tabIndex={0}
             role="button"
           >
             <div className="view-all-content">
@@ -843,7 +1270,7 @@ export default function DataSource() {
             variant="contained"
             size="large"
             onClick={handleSubmitSelectedFiles}
-            disabled={selectedFiles.length === 0}
+            disabled={selectedFiles.length === 0 || isSubmitting}
             sx={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               borderRadius: 3,
@@ -861,7 +1288,14 @@ export default function DataSource() {
               transition: 'all 0.3s ease'
             }}
           >
-            Submit ({selectedFiles.length})
+            {isSubmitting ? (
+              <>
+                <CircularProgress size={22} sx={{ color: 'white', mr: 1.5 }} />
+                Submitting...
+              </>
+            ) : (
+              `Submit (${selectedFiles.length})`
+            )}
           </Button>
         </div>
       )}

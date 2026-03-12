@@ -20,6 +20,8 @@ import AccessDenied from "./pages/access-denied";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SessionStatus from "./components/SessionStatus";
 import DataSource from "./pages/data-source";
+import Machine360 from "./pages/360report/machine360";
+import Customer360 from "./pages/360report/customer360";
 import { ResetPassword } from "./pages/Auth/ResetPassword";
 
 // Component to handle SessionStatus display based on route
@@ -50,6 +52,8 @@ function AppRoutes() {
           <Route path="/ai-models" element={<AiAndModels />} />
           <Route path="/kpi" element={<Kpi />} />
           <Route path="/data-source" element={<DataSource />} />
+          <Route path="/machine-360" element={<Machine360 />} />
+          <Route path="/customer-360" element={<Customer360 />} />
         </Route>
         
         {/* Admin screens also protected */}

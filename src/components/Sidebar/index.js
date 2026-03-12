@@ -4,6 +4,7 @@ import { BiAnalyse } from "react-icons/bi";
 import { RiFileWarningLine } from "react-icons/ri";
 import { AiOutlineRobot, AiOutlineSetting } from "react-icons/ai";
 import { IoStatsChartOutline } from "react-icons/io5";
+import { RiFileList3Line } from "react-icons/ri";
 import { MdStorage } from "react-icons/md";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./styles.css";
@@ -67,9 +68,21 @@ export default function Sidebar({ }) {
       name: "KPI",
       icon: <IoStatsChartOutline size={20} />,
       permission: "kpi_Read"
+    },
+    {
+      path: "/machine-360",
+      name: "Machine 360",
+      icon: <RiFileList3Line size={20} />,
+      permission: "kpi_Read"
+    },
+    {
+      path: "/customer-360",
+      name: "Customer 360",
+      icon: <RiFileList3Line size={20} />,
+      permission: "kpi_Read"
     }
   ].filter(item => permissions.includes(item.permission)) || [];
-console.log(sidebarItems,'dsfjks');
+
   // Function to check if current path is accessible
   const isPathAccessible = (path) => {
     // Check main paths

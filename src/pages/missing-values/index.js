@@ -57,9 +57,10 @@ const MissingValues = () => {
                 // Log Amplitude event after data is loaded
                 if (window && window.amplitude) {
                   // Calculate missing rows for each file
+                  const isImputed = (cell) => cell?.is_imputed === true || cell?.is_imputed === "True";
                   const missingRows = files.map(f => {
-                    const df = fileDataObj[f]?.df || [];
-                    const count = df.filter(row => Object.values(row).some(cell => cell.is_imputed === "True")).length;
+                    const rows = fileDataObj[f]?.rows ?? fileDataObj[f]?.df ?? [];
+                    const count = rows.filter(row => Object.values(row).some(cell => isImputed(cell))).length;
                     return { file: f, missingRows: count };
                   });
                   logAmplitudeEvent('Missing Values Viewed', {
@@ -76,23 +77,20 @@ const MissingValues = () => {
         fetchData();
     }, []);
 
-    // Use selected file's data
-    const rawData = selectedFile && fileData[selectedFile]?.df ? fileData[selectedFile].df : [];
-    const summary = selectedFile && fileData[selectedFile]?.Summary ? fileData[selectedFile].Summary : null;
+    // Use selected file's data - API returns rows, fallback to df for backward compatibility
+    const fileObj = selectedFile ? fileData[selectedFile] : null;
+    const rawData = fileObj?.rows ?? fileObj?.df ?? [];
+    const summary = fileObj?.Summary ?? fileObj?.summary ?? null;
+
+    // Helper: is_imputed can be boolean or string from API
+    const isImputed = (cell) => cell?.is_imputed === true || cell?.is_imputed === "True";
 
     // Filter data based on filter option
     const getFilteredData = () => {
         if (filterOption === 'missing-only') {
-            return rawData.filter(row => {
-                return Object.values(row).some(cell => {
-                    const value = cell.value;
-                    
-                    // Check for actual missing values (not imputed ones)
-                    const isMissing =  cell.is_imputed === "True"; // Only consider 0 as missing if not imputed
-                    
-                    return isMissing;
-                });
-            });
+            return rawData.filter(row =>
+                Object.values(row).some(cell => isImputed(cell))
+            );
         }
         return rawData; // Return all rows
     };
@@ -141,16 +139,9 @@ const MissingValues = () => {
 
     // Get counts for filter options
     const getMissingRowsCount = () => {
-        return rawData.filter(row => {
-            return Object.values(row).some(cell => {
-                const value = cell.value;
-                
-                // Check for actual missing values (not imputed ones)
-                const isMissing =  cell.is_imputed === "True"; // Only consider 0 as missing if not imputed
-                
-                return isMissing;
-            });
-        }).length;
+        return rawData.filter(row =>
+            Object.values(row).some(cell => isImputed(cell))
+        ).length;
     };
 
     // Show loader while loading
@@ -374,7 +365,7 @@ const MissingValues = () => {
                                             {getColumns().map((column, colIndex) => (
                                                 <td
                                                     key={colIndex}
-                                                    className={row[column]?.is_imputed === "True" ? "imputed" : ""}
+                                                    className={isImputed(row[column]) ? "imputed" : ""}
                                                 >
                                                     {row[column]?.value ?? 'N/A'}
                                                 </td>

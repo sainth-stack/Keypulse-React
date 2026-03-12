@@ -1,16 +1,16 @@
 // MiddleContent.js
 
-import { Box, CircularProgress, Grid, IconButton } from "@mui/material"
+import { Box, CircularProgress, IconButton } from "@mui/material"
 import TextField from '@mui/material/TextField';
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 // import '../../../../genAi/Main.css'
 import { InputAdornment } from '@mui/material';
-import { IoMdClose, IoMdRefresh, IoMdSend } from 'react-icons/io';
+import { IoMdClose, IoMdSend } from 'react-icons/io';
 import AnswersChat2 from "./answers";
 import { API_URL } from "../const";
+import botLogo from "../assets/images/botlogo.png";
 const ChatDataPrep = ({ showModel, setShowModel }) => {
-  const fileName = localStorage.getItem('filename')?.replace(/\.[^/.]+$/, '');
   const [search, setSearch] = useState('')
   const [answers, setAnswers] = useState([]);
   const lastMessageRef = useRef(null);
@@ -92,7 +92,8 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
   const handleGetAnswer = async (question, data) => {
     var formData = new FormData();
     formData.append('prompt', question);
-    const endpoint = `${API_URL}/genai_bot`;
+    const isVisualizationsPage = window.location.pathname === '/visualizations';
+    const endpoint = `${API_URL}${isVisualizationsPage ? '/get_plot_insights' : '/genai_bot'}`;
 
     // Get user ID from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -109,7 +110,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
         }
       );
       const ans = data.map((item) => {
-        if (item.question == question) {
+        if (item.question === question) {
           const responseData = safeParseMaybeJson(res?.data) || {};
           console.log('API Response:', responseData);
           console.log('text_output:', responseData.text_output);
@@ -143,7 +144,7 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
       setAnswers(ans)
     } catch (err) {
       const ans = data.map((item) => {
-        if (item.question == question) {
+        if (item.question === question) {
           return {
             ...item,
             answer: "No Data found",
@@ -191,7 +192,16 @@ const ChatDataPrep = ({ showModel, setShowModel }) => {
           justifyContent: "space-between"
         }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <span style={{ fontWeight: 600 }}>Bot</span>
+            <img 
+              src={botLogo} 
+              alt="Vector Bot" 
+              style={{ 
+                width: "90px", 
+                height: "40px", 
+                objectFit: "contain" 
+              }} 
+            />
+            {/* <span style={{ fontWeight: 600 }}>Vector</span> */}
           </Box>
           <IconButton
             onClick={() => setShowModel(false)}

@@ -168,15 +168,45 @@
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
 }
 
-.upload-card:hover .plus-icon {
-  background: #ffffff;
+.upload-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
+.upload-cloud-icon {
+  font-size: 2.5rem !important;
+  color: #667eea;
+  opacity: 0.5;
+}
+
+.upload-plus-icon {
+  position: absolute;
+  font-size: 2.5rem !important;
+  color: #667eea;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.25);
+}
+
+.upload-card:hover .upload-cloud-icon {
+  opacity: 0.6;
+}
+
+.upload-card:hover .upload-plus-icon {
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+}
+
 
 .file-name {
   font-size: 1rem;
   font-weight: 600;
   color: #1e293b;
-  margin: 16px 0 8px 0;
+  margin: 16px 0 12px 0;
+  padding-bottom: 4px;
   text-align: center;
   word-break: break-word;
   line-height: 1.4;
@@ -212,48 +242,139 @@
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
+.file-card-actions {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 12px;
+  padding: 10px 12px;
+  pointer-events: none;
+}
+
+.file-card-actions > * {
+  pointer-events: auto;
+}
+
+.card-action-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px !important;
+}
+
+.info-icon {
+  color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.info-icon:hover {
+  background: #3b82f6;
+  color: white !important;
+}
+
+.edit-icon {
+  color: #667eea !important;
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.edit-icon:hover {
+  background: #667eea;
+  color: white !important;
+}
+
 .check-icon {
   color: white;
   font-size: 14px;
   font-weight: 700;
 }
 
-.delete-icon,
-.delete-icon svg,
-.modal-delete-icon,
-.modal-delete-icon svg {
+.card-action-icon.delete-icon,
+.card-action-icon.delete-icon svg,
+.modal-card-action-icon.modal-delete-icon,
+.modal-card-action-icon.modal-delete-icon svg {
   color: #ef4444 !important;
   fill: #ef4444 !important;
 }
 
-.delete-icon {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  color: #ef4444;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 50%;
-  padding: 8px;
-  font-size: 16px;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
-  cursor: pointer;
-  font-size: 30px !important;
-  /* z-index: 2; */
+.card-action-icon.delete-icon {
+  background: rgba(239, 68, 68, 0.15);
 }
 
-.modal-delete-icon {
-  font-size: 25px !important;
-}
-.delete-icon:hover {
+.card-action-icon.delete-icon:hover {
   background: #ef4444;
-  color: white;
-  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+  color: white !important;
+  fill: white !important;
 }
 
 .delete-icon.loading {
-  color: #ef4444;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 6px;
+  flex-shrink: 0;
+}
+
+/* Modal card action icons - same as main, slightly smaller */
+.modal-file-card-actions {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 10px;
+  pointer-events: none;
+}
+
+.modal-file-card-actions > * {
+  pointer-events: auto;
+}
+
+.modal-card-action-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px !important;
+}
+
+.modal-info-icon {
+  color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.modal-info-icon:hover {
+  background: #3b82f6;
+  color: white !important;
+}
+
+.modal-edit-icon {
+  color: #667eea !important;
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.modal-edit-icon:hover {
+  background: #667eea;
+  color: white !important;
+}
+
+.modal-card-action-icon.modal-delete-icon {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.modal-card-action-icon.modal-delete-icon:hover {
+  background: #ef4444;
 }
 
 .loading-container {
@@ -360,30 +481,8 @@
   -webkit-box-orient: vertical;
 }
 
-.modal-delete-icon {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  color: #ef4444;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 50%;
-  padding: 6px;
-  font-size: 12px;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.2);
-  cursor: pointer;
-  z-index: 2;
-}
-
-.modal-delete-icon:hover {
-  background: #ef4444;
-  color: white;
-  box-shadow: 0 3px 12px rgba(239, 68, 68, 0.4);
-}
-
 .modal-delete-icon.loading {
-  color: #ef4444;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 4px;
+  flex-shrink: 0;
 }
 
 /* Professional scrollbar for modal */
@@ -438,10 +537,8 @@
     height: 110px;
   }
   
-  .plus-icon {
-    font-size: 2.5rem;
-    padding: 12px;
-  }
+  .upload-cloud-icon { font-size: 2rem !important; }
+  .upload-plus-icon { font-size: 2rem !important; padding: 10px; }
   
   .stats-bar {
     gap: 16px;
@@ -490,10 +587,8 @@
     height: 100px;
   }
   
-  .plus-icon {
-    font-size: 2rem;
-    padding: 10px;
-  }
+  .upload-cloud-icon { font-size: 1.75rem !important; }
+  .upload-plus-icon { font-size: 1.75rem !important; padding: 8px; }
   
   .data-source-title {
     font-size: 1.75rem;
