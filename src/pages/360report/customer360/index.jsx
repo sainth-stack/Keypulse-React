@@ -1,12 +1,23 @@
 import React, { useState } from "react";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { ChartFromConfig } from "../shared/DynamicReportRenderer";
 import { generateCustomer360PDF } from "../shared/downloadReport";
 import { useCustomer360Report } from "../shared/reportQueries";
 import { ReportGenerationLoader, useReportLoader } from "../../../components/ReportGenerationLoader";
 import "../reportPage.css";
 
+function hasIpr(ch) {
+  return (
+    ch?.iprInsights &&
+    (ch.iprInsights.Inferences?.length ||
+      ch.iprInsights.Issues?.length ||
+      ch.iprInsights.Recommendations?.length)
+  );
+}
+
 export default function Customer360() {
   const [downloading, setDownloading] = useState(false);
+  const [iprModalChart, setIprModalChart] = useState(null);
 
   const { data: payload, isLoading, isError, isSuccess } = useCustomer360Report();
   const { showLoader, currentStep, steps, overallProgress } = useReportLoader({
@@ -90,9 +101,80 @@ export default function Customer360() {
         <div className="report-360-charts">
           {sixCharts.map((ch, i) => (
             <div key={ch.chart_id || i} className="report-360-chart-cell">
+              {hasIpr(ch) && (
+                <button
+                  type="button"
+                  className="report-360-chart-ipr-btn"
+                  onClick={() => setIprModalChart(ch)}
+                  aria-label="View insights"
+                >
+                  <InfoOutlinedIcon fontSize="small" />
+                </button>
+              )}
               <ChartFromConfig config={ch} />
             </div>
           ))}
+        </div>
+      )}
+
+      {iprModalChart && (
+        <div
+          className="report-360-ipr-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="report-360-ipr-modal-title"
+          onClick={() => setIprModalChart(null)}
+        >
+          <div className="report-360-ipr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="report-360-ipr-modal-head">
+              <h2 id="report-360-ipr-modal-title" className="report-360-ipr-modal-title">
+                Insights, Issues &amp; Recommendations
+              </h2>
+              <button
+                type="button"
+                className="report-360-ipr-modal-close"
+                onClick={() => setIprModalChart(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="report-360-ipr-modal-body">
+              <h3 className="report-360-ipr-popup-chart-title">{iprModalChart.title}</h3>
+              <div className="report-360-ipr-rows">
+                {(iprModalChart.iprInsights.Inferences || []).length > 0 && (
+                  <div className="report-360-ipr-row">
+                    <span className="report-360-ipr-label">Inferences</span>
+                    <ul className="report-360-ipr-ul">
+                      {(iprModalChart.iprInsights.Inferences || []).map((item, j) => (
+                        <li key={j}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {(iprModalChart.iprInsights.Issues || []).length > 0 && (
+                  <div className="report-360-ipr-row">
+                    <span className="report-360-ipr-label report-360-ipr-label-issues">Issues</span>
+                    <ul className="report-360-ipr-ul">
+                      {(iprModalChart.iprInsights.Issues || []).map((item, j) => (
+                        <li key={j}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {(iprModalChart.iprInsights.Recommendations || []).length > 0 && (
+                  <div className="report-360-ipr-row">
+                    <span className="report-360-ipr-label report-360-ipr-label-rec">Recommendations</span>
+                    <ul className="report-360-ipr-ul">
+                      {(iprModalChart.iprInsights.Recommendations || []).map((item, j) => (
+                        <li key={j}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

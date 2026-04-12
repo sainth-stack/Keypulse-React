@@ -10,10 +10,54 @@ export const reportQueryKeys = {
 
 const BAR_COLORS = ["#3B82F6", "#8B5CF6", "#06B6D4", "#10B981", "#F59E0B", "#F97316", "#EF4444", "#EC4899", "#6366F1", "#14B8A6"];
 
-/** Normalize API response to payload shape (reports.fleet_manager_360). */
-export function normalizeMachineReport(data) {
+/**
+ * Map one API chart row to { label, value, color } for UI + PDF.
+ * Supports x/y points, machine_id/total_faults, label/value, and camelCase API shapes.
+ */
+export function normalizeChartDataRow(d, idx) {
+  let label;
+  if (d.label != null && String(d.label) !== "") label = String(d.label);
+  else if (d.name != null && String(d.name) !== "") label = String(d.name);
+  else if (typeof d.x === "string") label = d.x;
+  else if (d.machine_id != null) label = String(d.machine_id);
+  else if (d.vin != null) label = String(d.vin);
+  else if (d.code != null) label = String(d.code);
+  else if (d.fault_code != null) label = String(d.fault_code);
+  else if (d.series != null) label = String(d.series);
+  else if (d.system != null) label = String(d.system);
+  else if (d.country != null) label = String(d.country);
+  else if (d.event != null) label = String(d.event);
+  else if (d.x != null && typeof d.x !== "object") label = String(d.x);
+  else label = String(idx);
+
+  const rawVal =
+    d.value ??
+    d.y ??
+    d.total_faults ??
+    d.count ??
+    d.utilization ??
+    d.throughput ??
+    d.oee ??
+    d.hours ??
+    d.score ??
+    d.pct;
+  let value = 0;
+  if (typeof rawVal === "number" && Number.isFinite(rawVal)) value = rawVal;
+  else if (rawVal != null && rawVal !== "") value = Number(rawVal) || 0;
+
+  return {
+    label,
+    value,
+    color: d.color ?? BAR_COLORS[idx % BAR_COLORS.length],
+  };
+}
+
+/** Normalize API response to payload shape (reports.fleet_manager_360 or reports.customer_360). */
+export function normalizeMachineReport(data, options = {}) {
   if (!data) return null;
-  if (data.reports?.fleet_manager_360) return data;
+  const reportKey = options.reportKey ?? "fleet_manager_360";
+  if (reportKey === "fleet_manager_360" && data.reports?.fleet_manager_360) return data;
+  if (reportKey === "customer_360" && data.reports?.customer_360) return data;
 
   const payload = data.data && (data.status === "success" || data.data.reportMeta) ? data.data : data;
   const reportMeta = payload.reportMeta || {};
@@ -55,15 +99,12 @@ export function normalizeMachineReport(data) {
       if (chartType === "histogram") chartType = "bar";
       if (chartType === "donut") chartType = "pie";
       const rawData = c.data || [];
-      const data = rawData.map((d, idx) => {
-        const label = d.label ?? d.x ?? d.name ?? String(idx);
-        const value = d.value ?? d.y ?? 0;
-        return { label: String(label), value: typeof value === "number" ? value : Number(value) || 0, color: d.color ?? BAR_COLORS[idx % BAR_COLORS.length] };
-      });
+      const data = rawData.map((d, idx) => normalizeChartDataRow(d, idx));
       return {
         chart_id: c.chartId ?? c.chart_id,
         chart_type: chartType,
         title: c.title,
+        description: c.description ?? undefined,
         x_axis: "label",
         y_axis: "value",
         x_axis_label: c.xAxis ?? c.x_axis_label,
@@ -95,6 +136,24 @@ export function normalizeMachineReport(data) {
 
   const sections = summary.length > 0 ? [summarySection, ...normalizedSections] : normalizedSections;
 
+  const entityName = reportMeta.entityName ?? reportMeta.fleet_name ?? reportMeta.title ?? "";
+  const baseReport =
+    reportKey === "customer_360"
+      ? {
+          report_id: reportMeta.entityId ?? reportMeta.report_id ?? "api-report",
+          report_title: reportMeta.title ?? "Customer 360 Report",
+          customer: { name: entityName || "Customer Overview" },
+          reporting_period: reportMeta.reportingPeriod ? { from: "", to: reportMeta.reportingPeriod } : {},
+          sections,
+        }
+      : {
+          report_id: reportMeta.entityId ?? reportMeta.report_id ?? "api-report",
+          report_title: reportMeta.title ?? "Machine 360 Report",
+          fleet_name: entityName || "Fleet Overview",
+          reporting_period: reportMeta.reportingPeriod ? { from: "", to: reportMeta.reportingPeriod } : {},
+          sections,
+        };
+
   return {
     meta: {
       api_version: "1.0",
@@ -102,13 +161,7 @@ export function normalizeMachineReport(data) {
       report_period: payload.reportingPeriod ? { from: "", to: payload.reportingPeriod } : {},
     },
     reports: {
-      fleet_manager_360: {
-        report_id: reportMeta.entityId ?? reportMeta.report_id ?? "api-report",
-        report_title: reportMeta.title ?? "Machine 360 Report",
-        fleet_name: reportMeta.entityName ?? reportMeta.fleet_name ?? reportMeta.title ?? "Fleet Overview",
-        reporting_period: reportMeta.reportingPeriod ? { from: "", to: reportMeta.reportingPeriod } : {},
-        sections,
-      },
+      [reportKey]: baseReport,
     },
   };
 }
@@ -213,25 +266,35 @@ export function normalizeCustomerReport(raw) {
   };
 }
 
-async function fetchCustomer360Report() {
+async function fetchCustomerReportFromApi() {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userId = user.id;
+  const { data } = await axios.post(`${API_URL}/genai_report`, { report_type: "Customer 360" }, {
+    headers: userId ? { "X-User-ID": userId } : {},
+  });
+  return normalizeMachineReport(data, { reportKey: "customer_360" });
+}
+
+async function fetchCustomerReportStatic() {
   const mod = await import("../data/customer_report.json");
   const data = mod.default || mod;
   return data?.reports?.customer_360 ? data : normalizeCustomerReport(data) || { reports: { customer_360: data } };
 }
 
-/** Customer 360 report: static JSON. Fetches only on mount (when no cache) or when reportId/filename changes; no refetch on tab/window focus. */
+/** Customer 360 report: from API when USE_API_URL, else static JSON. Fetches only on mount (when no cache) or when reportId/filename changes; no refetch on tab/window focus. */
 export function useCustomer360Report(options = {}) {
   const { reportId, filename, ...rest } = options;
+  const enabled = options.enabled !== false;
   const cacheKey = reportId ?? filename ?? null;
   return useQuery({
-    queryKey: [...reportQueryKeys.customer360, cacheKey],
-    queryFn: fetchCustomer360Report,
-    staleTime: 10 * 60 * 1000,
+    queryKey: [...reportQueryKeys.customer360, USE_API_URL, cacheKey],
+    queryFn: USE_API_URL ? fetchCustomerReportFromApi : fetchCustomerReportStatic,
+    staleTime: USE_API_URL ? 2 * 60 * 1000 : 10 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
-    enabled: options.enabled !== false,
+    enabled,
     ...rest,
   });
 }
